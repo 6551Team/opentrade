@@ -74,20 +74,35 @@ Unified CEX trading engine — trade spot & perpetual futures across **5 major e
 | Auto Normalization | Automatic precision & contract size normalization across exchanges |
 | Cost Tracking | Weighted average cost (FIFO) calculation for spot positions |
 
-### 4-Layer Risk Engine
+### Multi-Layer Risk Engine
 
-All write operations (place order, edit order, close position, set leverage) pass through the risk engine before execution:
+All write operations (place order, edit order, close position, set leverage) pass through a configurable risk engine before execution. **4 core layers are enabled by default**, with 10+ additional optional layers available:
 
 ```
 Request → [Rate Limit] → [Price Deviation] → [Position Limit] → [Balance Check] → Exchange
 ```
 
-| Layer | Rule | Default Threshold |
-|:-----:|------|-------------------|
-| 1 | Rate Limit | 30 requests / minute |
-| 2 | Price Deviation | Max 10% from market price |
-| 3 | Position Size Limit | Single: 20% of balance, Total: 80% of balance |
-| 4 | Balance Check | Min 5% balance reserve |
+**Core Risk Layers** (enabled by default):
+
+| Layer | Rule | Default Threshold | Description |
+|:-----:|------|-------------------|-------------|
+| 1 | Rate Limit | 30 requests / minute | Prevents API abuse and exchange rate limits |
+| 2 | Price Deviation | Max 10% from market | Rejects orders too far from current market price |
+| 3 | Position Size Limit | Single: 20%, Total: 80% | Limits single position and total exposure |
+| 4 | Balance Check | Min 5% reserve | Ensures minimum balance reserve remains |
+
+**Optional Risk Layers** (configurable):
+
+| Layer | Description | Key Parameters |
+|-------|-------------|----------------|
+| Drawdown Limit | Prevents excessive losses over time periods | Daily: 5%, Weekly: 10%, Monthly: 20% |
+| Liquidation Prevention | Auto-reduces positions approaching liquidation | Margin call ratio: 150%, Liquidation ratio: 110% |
+| Circuit Breaker | Halts trading during extreme market volatility | Cooldown: 15 min, Price change thresholds |
+| Slippage Protection | Rejects orders with excessive slippage | Max spread: 0.5%, Max slippage: 1% |
+| Volatility Adjustment | Reduces position size during high volatility | Adjusts limits based on market conditions |
+| Order Anomaly Detection | Detects unusual order patterns (fat finger) | Max order value: $100k, Size std threshold: 3σ |
+| Anti-Manipulation | Prevents wash trading and self-trading | Order-to-trade ratio: 10:1, Self-trade window: 100ms |
+| Time Restriction | Limits trading to specific hours or blackout periods | Max holding days: 30, Restricted hours, News blackout |
 
 ### Security
 
