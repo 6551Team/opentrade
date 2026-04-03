@@ -106,16 +106,48 @@ Manage custodial wallets powered by [Turnkey](https://www.turnkey.com/). **Only 
 
 ### 📈 opentrade-cex
 
-CEX (centralized exchange) trading. Server-side execution with built-in risk controls — no private key management required.
+Unified CEX (centralized exchange) trading engine — trade spot & perpetual futures across 5 major exchanges through a single API. All orders execute server-side with a built-in 4-layer risk engine. No private key management or transaction signing required.
 
-**Key Features:**
-- Market data: ticker, K-lines, trading pair metadata
-- Account management: balance summary, spot assets
-- Order management: place/edit/cancel limit, market, stop-loss, take-profit orders
-- Position management: view, close, historical positions
-- Leverage & margin: set leverage, margin mode, position mode
-- Wallet agent: create and manage wallet agents for CEX↔chain fund transfers
-- Built-in 4-layer risk engine (price deviation, position limit, rate limit, balance check)
+**Supported Exchanges:**
+
+| Exchange | Spot | USDT Perpetual | Features |
+|----------|------|----------------|----------|
+| Binance | ✅ | ✅ | Full TP/SL, hedge mode, OCO |
+| Bybit | ✅ | ✅ | Linear perpetual, hedge mode |
+| OKX | ✅ | ✅ | Swap/futures, OCO orders |
+| Hyperliquid | ✅ | ✅ | On-chain perpetual DEX, wallet agent |
+| Aster | ✅ | ✅ | On-chain DEX, wallet agent |
+
+**29 API Endpoints across 7 categories:**
+
+- **Market Data** (5 endpoints) — Real-time ticker, K-line/candlestick, unified market metadata across exchanges, base currency discovery, server time
+- **Account** (3 endpoints) — Balance summary (spot/swap/future/margin), single spot asset query with FIFO cost basis, batch spot asset listing
+- **Config** (2 endpoints) — Read/update default exchange, leverage, position size, and encrypted exchange credentials
+- **Orders** (5 endpoints) — Place/edit/cancel orders, list open & closed orders. Supports 7 order types: `market`, `limit`, `stop_market`, `stop_limit`, `take_profit_market`, `take_profit_limit`, `oco`
+- **Positions** (3 endpoints) — View current positions, historical positions with trade details, close positions (full or partial)
+- **Leverage & Margin** (6 endpoints) — Leverage tiers, get/set leverage, margin mode (cross/isolated), position mode (one-way/hedge)
+- **Wallet Agent** (4 endpoints) — Create, list, query, and authorize Ethereum-compatible agent wallets for Hyperliquid & Aster
+
+**Advanced Trading Features:**
+- Attach **Take-Profit / Stop-Loss** directly to any order
+- Place orders by **base quantity** (e.g., 0.1 BTC) or **quote amount** (e.g., 100 USDT)
+- **Hedge mode** — hold long and short positions simultaneously
+- Automatic **precision & contract size** normalization across exchanges
+- **Weighted average cost** calculation for spot positions
+
+**4-Layer Risk Engine** (protects all write operations):
+
+| Layer | Rule | Default Threshold |
+|-------|------|-------------------|
+| 1 | Rate Limit | 30 requests/minute |
+| 2 | Price Deviation | Max 10% from market price |
+| 3 | Position Size Limit | Single: 20%, Total: 80% of balance |
+| 4 | Balance Check | Min 5% balance reserve |
+
+**Security:**
+- Exchange API credentials are **encrypted at rest** — never stored in plain text
+- All trades execute **server-side** — no client-side key exposure
+- Wallet agent uses **ECDSA delegated authorization** for on-chain exchanges
 
 ## Error Handling
 
