@@ -1,6 +1,6 @@
 # OpenTrade Skills
 
-> Trade CEX & DEX from a single unified API — powered by the [6551 platform](https://6551.io).
+> Trade CEX & DEX from a single unified API — powered by the [6551 platform](https://6551.io/mcp).
 
 ---
 
