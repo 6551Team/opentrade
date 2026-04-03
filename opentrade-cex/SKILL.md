@@ -1,6 +1,6 @@
 ---
-name: opentrade-newsliquid
-description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', 'manage wallet agent', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit, or newsliquid. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
+name: opentrade-cex
+description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', 'manage wallet agent', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
 license: MIT
 metadata:
   author: 6551
@@ -8,7 +8,7 @@ metadata:
   homepage: "https://6551.io"
 ---
 
-# OpenTrade Newsliquid CEX Trading
+# OpenTrade CEX Trading
 
 29 API endpoints for centralized exchange trading — market data, account management, spot & futures orders, positions, leverage, and wallet agent.
 
@@ -18,7 +18,7 @@ metadata:
 
 ## Pre-flight Checks
 
-Every time before running any newsliquid command, always follow these steps in order:
+Every time before running any CEX command, always follow these steps in order:
 
 1. Find or create a `.env` file in the project root to load the API credentials:
   ```bash
@@ -43,7 +43,7 @@ Every time before running any newsliquid command, always follow these steps in o
 - For token search / holders / trending → use `opentrade-token`
 - For custodial wallet (BSC/Solana) → use `opentrade-wallet`
 - For transaction broadcasting / gas → use `opentrade-gateway`
-- For CEX trading (spot, futures, leverage, orders, positions) → use this skill (`opentrade-newsliquid`)
+- For CEX trading (spot, futures, leverage, orders, positions) → use this skill (`opentrade-cex`)
 
 ## Supported Exchanges
 
@@ -1439,12 +1439,12 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 > User: "Buy 0.1 BTC on Binance"
 
 ```
-1. opentrade-newsliquid  GET /market/ticker?symbol=BTC/USDT&exchangeId=binance  → check current price
-2. opentrade-newsliquid  GET /account/summary?exchangeId=binance                → verify available balance
-3. opentrade-newsliquid  GET /market/metadata?ticker=BTC                        → confirm pair info/limits
-4. opentrade-newsliquid  POST /orders                                           → place order
+1. opentrade-cex  GET /market/ticker?symbol=BTC/USDT&exchangeId=binance  → check current price
+2. opentrade-cex  GET /account/summary?exchangeId=binance                → verify available balance
+3. opentrade-cex  GET /market/metadata?ticker=BTC                        → confirm pair info/limits
+4. opentrade-cex  POST /orders                                           → place order
        {"symbol":"BTC/USDT:USDT","side":"buy","type":"market","quantity":0.1,"exchangeId":"binance"}
-5. opentrade-newsliquid  GET /orders/open                                       → confirm order status
+5. opentrade-cex  GET /orders/open                                       → confirm order status
 ```
 
 **Data handoff**:
@@ -1457,14 +1457,14 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 > User: "Open a 10x long on ETH with $1000"
 
 ```
-1. opentrade-newsliquid  GET /market/ticker?symbol=ETH/USDT&exchangeId=binance  → check ETH price
-2. opentrade-newsliquid  GET /account/summary?exchangeId=binance&symbol=ETH/USDT:USDT&accountType=swap  → check margin balance
-3. opentrade-newsliquid  GET /leverage/current?symbol=ETH/USDT:USDT&exchangeId=binance  → check current leverage
-4. opentrade-newsliquid  PUT /leverage/current                       → set leverage to 10x (if needed)
+1. opentrade-cex  GET /market/ticker?symbol=ETH/USDT&exchangeId=binance  → check ETH price
+2. opentrade-cex  GET /account/summary?exchangeId=binance&symbol=ETH/USDT:USDT&accountType=swap  → check margin balance
+3. opentrade-cex  GET /leverage/current?symbol=ETH/USDT:USDT&exchangeId=binance  → check current leverage
+4. opentrade-cex  PUT /leverage/current                       → set leverage to 10x (if needed)
        {"symbol":"ETH/USDT:USDT","leverage":10,"exchangeId":"binance"}
-5. opentrade-newsliquid  POST /orders                                → open long position
+5. opentrade-cex  POST /orders                                → open long position
        {"symbol":"ETH/USDT:USDT","side":"buy","type":"market","quantity":<calculated>,"exchangeId":"binance"}
-6. opentrade-newsliquid  GET /positions                              → verify position opened
+6. opentrade-cex  GET /positions                              → verify position opened
 ```
 
 **Data handoff**:
@@ -1478,11 +1478,11 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 ```
 1. [opennews]             Search crypto news → get AI ratings and trade signals
 2. [opentwitter]          Check KOL sentiment on the target token
-3. opentrade-newsliquid   GET /market/ticker                         → check CEX price
-4. opentrade-newsliquid   GET /market/klines?interval=1h             → check recent trend
-5. opentrade-newsliquid   GET /account/summary                       → check balance
-6. opentrade-newsliquid   POST /orders                               → execute trade
-7. opentrade-newsliquid   GET /positions                             → monitor position
+3. opentrade-cex   GET /market/ticker                         → check CEX price
+4. opentrade-cex   GET /market/klines?interval=1h             → check recent trend
+5. opentrade-cex   GET /account/summary                       → check balance
+6. opentrade-cex   POST /orders                               → execute trade
+7. opentrade-cex   GET /positions                             → monitor position
 ```
 
 ### Workflow D: CEX-DEX Price Arbitrage
@@ -1490,11 +1490,11 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 > User: "Compare BTC price between CEX and DEX"
 
 ```
-1. opentrade-newsliquid   GET /market/ticker?symbol=BTC/USDT&exchangeId=binance   → CEX price
+1. opentrade-cex   GET /market/ticker?symbol=BTC/USDT&exchangeId=binance   → CEX price
 2. [opentrade-market]     GET /market/price (on-chain)               → DEX price
 3. Compare prices → identify arbitrage opportunity
-4a. CEX cheaper → opentrade-newsliquid POST /orders (CEX buy) + [opentrade-dex-swap] (DEX sell)
-4b. DEX cheaper → [opentrade-dex-swap] (DEX buy) + opentrade-newsliquid POST /orders (CEX sell)
+4a. CEX cheaper → opentrade-cex POST /orders (CEX buy) + [opentrade-dex-swap] (DEX sell)
+4b. DEX cheaper → [opentrade-dex-swap] (DEX buy) + opentrade-cex POST /orders (CEX sell)
 5. Confirm both sides filled → calculate profit
 ```
 
@@ -1504,11 +1504,11 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 
 ```
 1. [opentrade-portfolio]  Check on-chain ETH balance                 → e.g., 10 ETH
-2. opentrade-newsliquid   GET /account/summary                       → check CEX margin
-3. opentrade-newsliquid   PUT /leverage/current                      → set leverage
-4. opentrade-newsliquid   POST /orders                               → open short position
+2. opentrade-cex   GET /account/summary                       → check CEX margin
+3. opentrade-cex   PUT /leverage/current                      → set leverage
+4. opentrade-cex   POST /orders                               → open short position
        {"symbol":"ETH/USDT:USDT","side":"sell","type":"market","quantity":10,"exchangeId":"binance"}
-5. opentrade-newsliquid   GET /positions                             → confirm hedge position
+5. opentrade-cex   GET /positions                             → confirm hedge position
 ```
 
 ### Workflow F: DEX Discovery + CEX Execution
@@ -1518,8 +1518,8 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 ```
 1. [opentrade-token]      Search trending tokens                     → discover hot tokens
 2. [opentrade-market]     Check on-chain trading activity            → smart money signals
-3. opentrade-newsliquid   GET /market/metadata                       → check if listed on CEX
-4. If CEX listed → opentrade-newsliquid POST /orders                 → trade on CEX (lower fees)
+3. opentrade-cex   GET /market/metadata                       → check if listed on CEX
+4. If CEX listed → opentrade-cex POST /orders                 → trade on CEX (lower fees)
    If not listed → [opentrade-dex-swap]                              → trade on DEX
 ```
 
@@ -1528,9 +1528,9 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 > User: "Show me all my assets across CEX and DEX"
 
 ```
-1. opentrade-newsliquid   GET /account/summary                       → CEX total balance
-2. opentrade-newsliquid   GET /account/spots                         → CEX spot assets
-3. opentrade-newsliquid   GET /positions                             → CEX open positions
+1. opentrade-cex   GET /account/summary                       → CEX total balance
+2. opentrade-cex   GET /account/spots                         → CEX spot assets
+3. opentrade-cex   GET /positions                             → CEX open positions
 4. [opentrade-portfolio]  Get on-chain wallet balances               → DEX holdings
 5. Combine and present unified portfolio report
 ```
@@ -1674,7 +1674,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 - All endpoints require `Authorization: Bearer <token>` header
 - Supported exchanges: `binance`, `bybit`, `okx`, `hyperliquid`, `aster`
 - Trading pair format follows **CCXT standard**: `BTC/USDT` for spot, `BTC/USDT:USDT` for USDT perpetual contracts
-- The API routes through the Newsliquid gateway with built-in risk controls — trades execute server-side
+- The API routes through the CEX gateway with built-in risk controls — trades execute server-side
 - No private keys or transaction signing involved — this is CEX trading via API
 - CEX uses **standard amount units** (e.g., `0.1 BTC`), unlike DEX which uses minimal units (wei/lamports)
 - Numeric values in request bodies use native types (numbers, not strings): `"quantity": 0.01`, `"price": 65000.00`

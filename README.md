@@ -1,6 +1,6 @@
 # OpenTrade Skills
 
-A collection of skills for interacting with Newsliquid and DEX aggregator APIs via the 6551 platform.
+A collection of skills for interacting with CEX and DEX aggregator APIs via the 6551 platform.
 
 ## Overview
 
@@ -12,7 +12,7 @@ OpenTrade provides 7 specialized skills for comprehensive blockchain trading ope
 4. **opentrade-market** - Market data (prices, K-line, trades, smart money signals)
 5. **opentrade-token** - Token information (search, info, holders, trending)
 6. **opentrade-wallet** - Custodial wallet management (create wallet, get account, swap, withdraw). Supports BSC and Solana only.
-7. **opentrade-newsliquid** - CEX trading via Newsliquid gateway (spot & futures orders, positions, leverage, account management, wallet agent). Server-side execution with built-in risk controls.
+7. **opentrade-cex** - CEX trading (spot & futures orders, positions, leverage, account management, wallet agent). Server-side execution with built-in risk controls.
 
 ## Quick Start
 
@@ -104,9 +104,9 @@ Manage custodial wallets powered by [Turnkey](https://www.turnkey.com/). **Only 
 
 > **Note**: Newly created wallets have zero balance. You must deposit **BNB** (BSC network) or **SOL** (Solana network) before trading. Do NOT send tokens from other chains — funds will be lost.
 
-### 📈 opentrade-newsliquid
+### 📈 opentrade-cex
 
-CEX (centralized exchange) trading via the Newsliquid gateway. Server-side execution with built-in risk controls — no private key management required.
+CEX (centralized exchange) trading. Server-side execution with built-in risk controls — no private key management required.
 
 **Key Features:**
 - Market data: ticker, K-lines, trading pair metadata
