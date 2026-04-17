@@ -4,8 +4,8 @@ description: "Use this skill when users want live on-chain market data: token pr
 license: Apache-2.0
 metadata:
   author: 6551
-  version: "1.0.1"
-  homepage: "https://6551.io"
+  version: "1.0.2"
+  homepage: "https://www.newsliquid.com"
 ---
 
 # OpenTrade DEX Market Data CLI
@@ -43,7 +43,7 @@ Every time before running any `opentrade` command, always follow these steps in 
   OPEN_TOKEN=your_token_here
   ```
 
-  Get your API token at: https://6551.io/mcp
+  Get your API token at: https://www.newsliquid.com/mcp
 
   **Security warning**: Never commit .env to git (add it to .gitignore) and never expose credentials in logs, screenshots, or chat messages.
 

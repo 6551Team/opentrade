@@ -4,8 +4,8 @@ description: "This skill should be used when the user asks to 'create a custodia
 license: Apache-2.0
 metadata:
   author: 6551
-  version: "1.0.0"
-  homepage: "https://6551.io"
+  version: "1.0.1"
+  homepage: "https://www.newsliquid.com"
 ---
 
 # OpenTrade Custodial Wallet
@@ -25,7 +25,7 @@ Every time before running any custodial wallet command, always follow these step
   OPEN_TOKEN=your_token_here
   ```
 
-  Get your API token at: https://6551.io/mcp
+  Get your API token at: https://www.newsliquid.com/mcp
 
   **Security warning**: Never commit .env to git (add it to .gitignore) and never expose credentials in logs, screenshots, or chat messages.
 

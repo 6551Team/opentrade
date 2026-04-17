@@ -1,6 +1,6 @@
 # OpenTrade Skills
 
-> Trade CEX & DEX from a single unified API — powered by the [6551 platform](https://6551.io/mcp).
+> Trade CEX & DEX from a single unified API — powered by the [6551 platform](https://www.newsliquid.com/mcp).
 
 ---
 
@@ -22,7 +22,7 @@ OpenTrade provides **7 specialized skills** covering the full spectrum of blockc
 
 ## Quick Start
 
-**1. Get your API token** at https://6551.io/mcp
+**1. Get your API token** at https://www.newsliquid.com/mcp
 
 **2. Set environment variable**
 
@@ -224,8 +224,8 @@ Manage blockchain transactions end-to-end.
 
 ## Support
 
-- **Platform**: https://6551.io
-- **API Token**: https://6551.io/mcp
+- **Platform**: https://www.newsliquid.com
+- **API Token**: https://www.newsliquid.com/mcp
 
 ## License
 
