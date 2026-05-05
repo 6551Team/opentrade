@@ -1,6 +1,6 @@
 ---
 name: opentrade-cex
-description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', 'manage wallet agent', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
+description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
 license: MIT
 metadata:
   author: 6551
@@ -10,7 +10,7 @@ metadata:
 
 # OpenTrade CEX Trading
 
-28 API endpoints for centralized exchange trading — market data, account management, spot & futures orders, positions, leverage, and wallet agent.
+24 API endpoints for centralized exchange trading — market data, account management, spot & futures orders, positions, and leverage.
 
 > **IMPORTANT**: This is a **CEX (centralized exchange)** trading skill. All trades are executed server-side with built-in risk controls — no private key management or transaction signing required.
 >
@@ -157,15 +157,6 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | 22 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
 | 23 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
 | 24 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
-
-### Wallet Agent (no risk control)
-
-| # | Endpoint | Method | Description |
-|---|---|---|---|
-| 25 | `/open/trader/newsliquid/v1/walletagent/create` | POST | Create wallet agent |
-| 26 | `/open/trader/newsliquid/v1/walletagent/list` | GET | List wallet agents |
-| 27 | `/open/trader/newsliquid/v1/walletagent/address/:address` | GET | Query wallet agent by address |
-| 28 | `/open/trader/newsliquid/v1/walletagent/authorize` | PUT | Authorize wallet agent |
 
 ## API Reference
 
@@ -1272,168 +1263,6 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/position/mode" \
 
 ---
 
-### 25. Create Wallet Agent
-
-创建一个新的以太坊钱包代理（用于 Aster 或 Hyperliquid 交易）。
-
-```bash
-curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/walletagent/create" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{"exchange":"hyperliquid"}'
-```
-
-**Parameters (body):**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `exchange` | String | Yes | Exchange type: `aster` or `hyperliquid` |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "userId": "user_001",
-    "agentAddress": "0x1234567890abcdef...",
-    "userAddress": "",
-    "exchange": "hyperliquid",
-    "authorized": false,
-    "createdAt": "2026-03-21T10:30:00Z",
-    "updatedAt": "2026-03-21T10:30:00Z"
-  },
-  "usage": {"cost": 1, "quota": 99}
-}
-```
-
-**Display to user:**
-- "Wallet agent created!"
-- "Agent Address: 0x1234..."
-- "Exchange: Hyperliquid"
-- "Status: Not authorized (run authorize to activate)"
-
----
-
-### 26. List Wallet Agents
-
-获取当前用户的所有钱包代理列表。
-
-```bash
-curl -s "$BASE_URL/open/trader/newsliquid/v1/walletagent/list?exchange=hyperliquid" \
-  -H "$AUTH_HEADER"
-```
-
-**Parameters:**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `exchange` | String (query) | No | Filter by exchange type: `aster` or `hyperliquid` |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "userId": "user_001",
-      "agentAddress": "0x1234567890abcdef...",
-      "userAddress": "0xabcdef1234567890...",
-      "exchange": "hyperliquid",
-      "authorized": true,
-      "expiredAt": 1681992600000,
-      "createdAt": "2026-03-21T10:30:00Z",
-      "updatedAt": "2026-03-21T10:30:00Z"
-    }
-  ],
-  "usage": {"cost": 1, "quota": 99}
-}
-```
-
----
-
-### 27. Query Wallet Agent by Address
-
-根据钱包地址获取钱包代理信息。
-
-```bash
-curl -s "$BASE_URL/open/trader/newsliquid/v1/walletagent/address/0x1234567890abcdef?exchange=hyperliquid" \
-  -H "$AUTH_HEADER"
-```
-
-**Parameters:**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `address` | String (path) | Yes | Wallet address (in URL path) |
-| `exchange` | String (query) | No | Filter by exchange type |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "userId": "user_001",
-    "agentAddress": "0x1234567890abcdef...",
-    "userAddress": "0xabcdef1234567890...",
-    "exchange": "hyperliquid",
-    "authorized": true,
-    "expiredAt": 1681992600000,
-    "createdAt": "2026-03-21T10:30:00Z",
-    "updatedAt": "2026-03-21T10:30:00Z"
-  },
-  "usage": {"cost": 1, "quota": 99}
-}
-```
-
----
-
-### 28. Authorize Wallet Agent
-
-设置钱包代理的授权状态。
-
-```bash
-curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{
-    "agentAddress": "0x1234567890abcdef...",
-    "exchange": "hyperliquid",
-    "userAddress": "0xabcdef1234567890...",
-    "authorized": true,
-    "expiredAt": 1681992600000
-  }'
-```
-
-**Parameters (body):**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `agentAddress` | String | Yes | Agent wallet address |
-| `exchange` | String | Yes | Exchange type: `aster` or `hyperliquid` |
-| `userAddress` | String | Yes | User's main wallet address |
-| `authorized` | Boolean | Yes | `true` to authorize, `false` to revoke |
-| `expiredAt` | Integer | No | Authorization expiry (Unix milliseconds) |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "userId": "user_001",
-    "agentAddress": "0x1234567890abcdef...",
-    "userAddress": "0xabcdef1234567890...",
-    "exchange": "hyperliquid",
-    "authorized": true,
-    "expiredAt": 1681992600000,
-    "createdAt": "2026-03-21T10:30:00Z",
-    "updatedAt": "2026-03-21T11:00:00Z"
-  },
-  "usage": {"cost": 1, "quota": 99}
-}
-```
-
 ## Cross-Skill Workflows
 
 ### Workflow A: CEX Spot Trading
@@ -1557,7 +1386,6 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 | Set leverage | `PUT /leverage/current` |
 | Check leverage / margin | `GET /leverage/current`, `GET /margin/mode` |
 | View trade history | `GET /trades/history` |
-| Manage wallet agents | `POST/GET/PUT /walletagent/*` |
 
 ### Step 2: Collect Parameters
 
@@ -1694,7 +1522,6 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 - Numeric values in request bodies use native types (numbers, not strings): `"quantity": 0.01`, `"price": 65000.00`
 - Risk-controlled endpoints may reject requests — always display the rejection reason to the user
 - Query parameters go in the URL, body parameters go in JSON request body
-- Wallet Agent feature only supports `aster` and `hyperliquid` exchanges
 - Each API request consumes 1 quota unit (shown in `usage` field of response)
 - **Success response**: `{"success": true, "data": {...}, "usage": {"cost": 1, "quota": 99}}`
 - **Error response (upstream)**: `{"success": false, "code": "INVALID_REQUEST", "error": "message"}`
