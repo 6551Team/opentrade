@@ -10,11 +10,16 @@ metadata:
 
 # OpenTrade CEX Trading
 
-29 API endpoints for centralized exchange trading — market data, account management, spot & futures orders, positions, leverage, and wallet agent.
+28 API endpoints for centralized exchange trading — market data, account management, spot & futures orders, positions, leverage, and wallet agent.
 
 > **IMPORTANT**: This is a **CEX (centralized exchange)** trading skill. All trades are executed server-side with built-in risk controls — no private key management or transaction signing required.
 >
-> **IMPORTANT**: Write operations (place order, edit order, close position, set leverage) are protected by a 4-layer risk engine: price deviation check, position limit, rate limit, and balance verification.
+> **IMPORTANT**: Write operations (place order, close position, set leverage) are protected by a 4-layer risk engine: price deviation check, position limit, rate limit, and balance verification.
+>
+> **CRITICAL — Required Parameters for Orders**:
+> - **`type`** (REQUIRED): Order type must always be specified (`market`, `limit`, `stop_market`, `take_profit_market`). Each type has different parameter requirements.
+> - **`hedged`** (REQUIRED): When placing orders (`POST /orders`) or closing positions (`POST /positions/close`), the `hedged` field is required. If the `hedged` value is unknown or not provided by the user, you **MUST** first call `GET /position/mode` to obtain `data.hedged`. Once obtained, the value can be reused for subsequent requests on the same symbol and exchange without re-fetching. Using an incorrect `hedged` value may cause order rejection or affect the wrong position.
+> - **`quantity` for close position** (REQUIRED): When closing a position, you must explicitly provide the quantity to close. `0` is not allowed. Use the actual position size from `GET /positions` when closing the full position.
 
 ## Pre-flight Checks
 
@@ -66,23 +71,28 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&excha
 curl -s "$BASE_URL/open/trader/newsliquid/v1/account/summary?exchangeId=binance&symbol=BTC/USDT:USDT" \
   -H "$AUTH_HEADER"
 
-# 3. Place a limit buy order
+# 3. Get position mode (if hedged value is unknown, MUST call before placing orders or closing positions)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
+  -H "$AUTH_HEADER"
+# → Returns {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
+
+# 4. Place a limit buy order (use hedged value from step 3)
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{"symbol":"BTC/USDT:USDT","side":"buy","type":"limit","quantity":0.001,"price":60000,"exchangeId":"binance"}'
+  -d '{"symbol":"BTC/USDT:USDT","side":"buy","type":"limit","quantity":0.001,"price":60000,"exchangeId":"binance","hedged":false}'
 
-# 4. Check open orders
+# 5. Check open orders
 curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance" \
   -H "$AUTH_HEADER"
 
-# 5. Check current positions
+# 6. Check current positions
 curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
   -H "$AUTH_HEADER"
 
-# 6. Close a position (market price)
+# 7. Close a position (use hedged value from step 3, quantity is required)
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0,"exchangeId":"binance"}'
+  -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0.001,"exchangeId":"binance","hedged":false}'
 ```
 
 > **Note**: Trading pair format follows CCXT standard: `BTC/USDT` for spot, `BTC/USDT:USDT` for USDT perpetual contracts.
@@ -114,49 +124,48 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | 9 | `/open/trader/newsliquid/v1/config` | GET | Get trading config |
 | 10 | `/open/trader/newsliquid/v1/config` | PUT | Update trading config |
 
-### Orders (risk control on create/edit)
+### Orders (risk control on create)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
 | 11 | `/open/trader/newsliquid/v1/orders` | POST | Yes | Place order (limit/market/stop-loss/take-profit) |
-| 12 | `/open/trader/newsliquid/v1/orders/edit` | PUT | Yes | Edit existing order |
-| 13 | `/open/trader/newsliquid/v1/orders/:orderId` | DELETE | No | Cancel order |
-| 14 | `/open/trader/newsliquid/v1/orders/open` | GET | No | List open orders |
-| 15 | `/open/trader/newsliquid/v1/orders/closed` | GET | No | List closed orders |
+| 12 | `/open/trader/newsliquid/v1/orders/:orderId` | DELETE | No | Cancel order |
+| 13 | `/open/trader/newsliquid/v1/orders/open` | GET | No | List open orders |
+| 14 | `/open/trader/newsliquid/v1/orders/closed` | GET | No | List closed orders |
 
 ### Positions (risk control on close)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 16 | `/open/trader/newsliquid/v1/positions` | GET | No | List current positions |
-| 17 | `/open/trader/newsliquid/v1/positions/history` | GET | No | List historical positions |
-| 18 | `/open/trader/newsliquid/v1/positions/close` | POST | Yes | Close position (market price) |
+| 15 | `/open/trader/newsliquid/v1/positions` | GET | No | List current positions |
+| 16 | `/open/trader/newsliquid/v1/positions/history` | GET | No | List historical positions |
+| 17 | `/open/trader/newsliquid/v1/positions/close` | POST | Yes | Close position (market price) |
 
 ### Trades (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 19 | `/open/trader/newsliquid/v1/trades/history` | GET | Get trade execution history |
+| 18 | `/open/trader/newsliquid/v1/trades/history` | GET | Get trade execution history |
 
 ### Leverage & Margin (risk control on leverage change)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 20 | `/open/trader/newsliquid/v1/leverage` | GET | No | Get available leverage tiers |
-| 21 | `/open/trader/newsliquid/v1/leverage/current` | GET | No | Get current leverage setting |
-| 22 | `/open/trader/newsliquid/v1/leverage/current` | PUT | Yes | Set leverage multiplier |
-| 23 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
-| 24 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
-| 25 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
+| 19 | `/open/trader/newsliquid/v1/leverage` | GET | No | Get available leverage tiers |
+| 20 | `/open/trader/newsliquid/v1/leverage/current` | GET | No | Get current leverage setting |
+| 21 | `/open/trader/newsliquid/v1/leverage/current` | PUT | Yes | Set leverage multiplier |
+| 22 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
+| 23 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
+| 24 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
 
 ### Wallet Agent (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 26 | `/open/trader/newsliquid/v1/walletagent/create` | POST | Create wallet agent |
-| 27 | `/open/trader/newsliquid/v1/walletagent/list` | GET | List wallet agents |
-| 28 | `/open/trader/newsliquid/v1/walletagent/address/:address` | GET | Query wallet agent by address |
-| 29 | `/open/trader/newsliquid/v1/walletagent/authorize` | PUT | Authorize wallet agent |
+| 25 | `/open/trader/newsliquid/v1/walletagent/create` | POST | Create wallet agent |
+| 26 | `/open/trader/newsliquid/v1/walletagent/list` | GET | List wallet agents |
+| 27 | `/open/trader/newsliquid/v1/walletagent/address/:address` | GET | Query wallet agent by address |
+| 28 | `/open/trader/newsliquid/v1/walletagent/authorize` | PUT | Authorize wallet agent |
 
 ## API Reference
 
@@ -586,8 +595,18 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/config" \
 
 **This endpoint is protected by the risk engine** — orders that deviate too far from market price, exceed position limits, hit rate limits, or lack sufficient balance will be rejected.
 
+> **CRITICAL — Required Parameters**:
+> - **`type`** (REQUIRED): Order type must be explicitly specified. Choose from: `market`, `limit`, `stop_market`, `take_profit_market`. Each type has different parameter requirements (see Order Types section below).
+> - **`hedged`** (REQUIRED): Hedge mode flag. If the value is unknown, call `GET /position/mode` first to obtain `data.hedged`. Once obtained, it can be reused for subsequent orders on the same symbol/exchange.
+
 ```bash
-# Limit order: buy 0.01 BTC at $65,000 with TP/SL
+# Step 1: Get position mode to obtain the hedged parameter (if unknown)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
+  -H "$AUTH_HEADER"
+# → Returns {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
+# Extract data.hedged value to use in the order request
+
+# Step 2: Limit order - buy 0.01 BTC at $65,000 with TP/SL (use hedged from step 1)
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
   -d '{
@@ -597,11 +616,13 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
     "type": "limit",
     "quantity": 0.01,
     "price": 65000.00,
+    "hedged": false,
     "stopLossPrice": 64000.00,
     "takeProfitPrice": 70000.00
   }'
 
-# Market order: sell 0.5 ETH
+# Market order: sell 0.5 ETH (get hedged first)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=ETH/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
   -d '{
@@ -609,10 +630,12 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
     "symbol": "ETH/USDT:USDT",
     "side": "sell",
     "type": "market",
-    "quantity": 0.5
+    "quantity": 0.5,
+    "hedged": false
   }'
 
-# Stop-loss market order
+# Stop-loss market order (get hedged first)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
   -d '{
@@ -621,7 +644,8 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
     "side": "sell",
     "type": "stop_market",
     "quantity": 0.01,
-    "triggerPrice": 58000.00
+    "triggerPrice": 58000.00,
+    "hedged": false
   }'
 ```
 
@@ -632,23 +656,25 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
 | `exchangeId` | String | No | Exchange ID (default: `binance`) |
 | `symbol` | String | Yes | Trading pair in CCXT format (e.g., `BTC/USDT:USDT`) |
 | `side` | String | Yes | `buy` or `sell` |
-| `type` | String | Yes | Order type (see below) |
+| `type` | String | **Yes** | **Order type (REQUIRED) - determines execution behavior and which other parameters are needed. See Order Types below.** |
 | `quantity` | Float | Conditional | Base currency quantity |
 | `quoteAmount` | Float | Conditional | Quote currency amount (e.g., USDT) |
 | `price` | Float | Conditional | Limit price, required for `limit`, `stop_limit`, `take_profit_limit` |
 | `triggerPrice` | Float | Conditional | Trigger price, required for `stop_market`, `stop_limit`, `take_profit_market`, `take_profit_limit` |
-| `hedged` | Boolean | No | Hedge mode (default: `false`) |
+| `hedged` | Boolean | **Yes** | **Hedge mode (REQUIRED) - MUST be obtained from `GET /position/mode` if unknown. Using incorrect value may cause order rejection.** |
 | `stopLossPrice` | Float | No | Attached stop-loss trigger price |
 | `takeProfitPrice` | Float | No | Attached take-profit trigger price |
 
 **Order types:**
-- `market` — Market order
-- `limit` — Limit order
-- `oco` — OCO order
-- `stop_market` — Stop-loss market order
-- `stop_limit` — Stop-loss limit order
-- `take_profit_market` — Take-profit market order
-- `take_profit_limit` — Take-profit limit order
+- `market` — Market order (executes immediately at current market price, no `price` needed)
+- `limit` — Limit order (executes at specified `price` or better, `price` required)
+- `stop_market` — Stop-loss market order (triggers at `triggerPrice`, executes at market, `triggerPrice` required)
+- `take_profit_market` — Take-profit market order (triggers at `triggerPrice`, executes at market, `triggerPrice` required)
+
+**Important**: Always specify `type` explicitly. Different order types require different parameters:
+- `market`: requires `quantity` or `quoteAmount`
+- `limit`: requires `quantity` or `quoteAmount` + `price`
+- `stop_market` / `take_profit_market`: requires `quantity` + `triggerPrice`
 
 **Response:**
 ```json
@@ -691,47 +717,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
 
 ---
 
-### 12. Edit Order (Risk Controlled)
-
-修改已存在的挂单参数。
-
-**This endpoint is protected by the risk engine.**
-
-```bash
-curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/orders/edit" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{
-    "exchangeId": "binance",
-    "orderId": "123456789",
-    "symbol": "BTC/USDT:USDT",
-    "type": "limit",
-    "side": "buy",
-    "quantity": 0.02,
-    "price": 64500.00
-  }'
-```
-
-**Parameters (body):**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `exchangeId` | String | Yes | Exchange ID |
-| `orderId` | String | No | Order ID (Binance TP/SL orders can omit) |
-| `symbol` | String | Yes | Trading pair |
-| `type` | String | No | Order type |
-| `side` | String | No | Direction |
-| `quantity` | Float | No | New quantity |
-| `price` | Float | No | New limit price |
-| `triggerPrice` | Float | No | New trigger price |
-| `stopLossPrice` | Float | No | New stop-loss price |
-| `takeProfitPrice` | Float | No | New take-profit price |
-| `hedged` | Boolean | No | Hedge mode |
-
-**Response:** Same `OrderResponse` structure as Place Order.
-
----
-
-### 13. Cancel Order
+### 12. Cancel Order
 
 取消指定的挂单。
 
@@ -762,7 +748,7 @@ curl -s -X DELETE "$BASE_URL/open/trader/newsliquid/v1/orders/123456789?exchange
 
 ---
 
-### 14. List Open Orders
+### 13. List Open Orders
 
 获取当前所有未成交的挂单。
 
@@ -810,7 +796,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance&symb
 
 ---
 
-### 15. List Closed Orders
+### 14. List Closed Orders
 
 获取已完成（成交/取消）的历史订单。
 
@@ -831,7 +817,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/closed?exchangeId=binance&sy
 
 ---
 
-### 16. List Current Positions
+### 15. List Current Positions
 
 获取当前所有持仓信息。
 
@@ -879,7 +865,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
 
 ---
 
-### 17. List Historical Positions
+### 16. List Historical Positions
 
 获取已平仓的历史持仓记录（包含关联的交易明细）。
 
@@ -967,20 +953,32 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions/history?exchangeId=binanc
 
 ---
 
-### 18. Close Position (Risk Controlled)
+### 17. Close Position (Risk Controlled)
 
 关闭指定的持仓（全部或部分平仓）。
 
 **This endpoint is protected by the risk engine.**
 
+> **CRITICAL — Required Parameters**:
+> - **`quantity`** (REQUIRED): You must explicitly provide the position size to close. `0` is not allowed. Use the actual position size from `GET /positions` when closing the full position.
+> - **`hedged`** (REQUIRED): If the value is unknown, call `GET /position/mode` first to obtain `data.hedged`. Once obtained, it can be reused for subsequent requests on the same symbol/exchange.
+
 ```bash
+# Step 1: Get position mode to obtain the hedged parameter (if unknown)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
+  -H "$AUTH_HEADER"
+# → Returns {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
+# Extract data.hedged value to use in the close request
+
+# Step 2: Close position using hedged value from step 1
+# Use the actual position size from GET /positions when closing the full position
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
   -d '{
     "exchangeId": "binance",
     "symbol": "BTC/USDT:USDT",
     "side": "long",
-    "quantity": 0,
+    "quantity": 0.01,
     "hedged": false
   }'
 ```
@@ -992,8 +990,8 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | `exchangeId` | String | Yes | Exchange ID |
 | `symbol` | String | Yes | Trading pair |
 | `side` | String | Yes | Position side: `long` or `short` |
-| `quantity` | Float | No | Close quantity (0 = close all) |
-| `hedged` | Boolean | No | Hedge mode |
+| `quantity` | Float | **Yes** | **Close quantity (REQUIRED). Must be greater than 0. Use the actual position size from `GET /positions` to close the full position.** |
+| `hedged` | Boolean | **Yes** | **Hedge mode (REQUIRED). If unknown, get `data.hedged` from `GET /position/mode`.** |
 | `price` | Float | No | Market price for Hyperliquid |
 
 **Response:** Same `OrderResponse` structure as Place Order.
@@ -1004,7 +1002,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 
 ---
 
-### 19. Get Trade History
+### 18. Get Trade History
 
 获取历史成交记录。
 
@@ -1051,7 +1049,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/trades/history?exchangeId=binance&s
 
 ---
 
-### 20. Get Leverage Tiers
+### 19. Get Leverage Tiers
 
 获取指定交易对的杠杆档位（梯度）信息。
 
@@ -1108,7 +1106,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage?symbol=BTC/USDT:USDT&excha
 
 ---
 
-### 21. Get Current Leverage
+### 20. Get Current Leverage
 
 获取指定交易对当前设置的杠杆倍数和保证金模式。
 
@@ -1141,7 +1139,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage/current?symbol=BTC/USDT:US
 
 ---
 
-### 22. Set Leverage (Risk Controlled)
+### 21. Set Leverage (Risk Controlled)
 
 设置指定交易对的杠杆倍数。
 
@@ -1177,7 +1175,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 
 ---
 
-### 23. Get Margin Mode
+### 22. Get Margin Mode
 
 获取指定交易对的保证金模式（cross 全仓 / isolated 逐仓）。
 
@@ -1206,7 +1204,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/margin/mode?symbol=BTC/USDT:USDT&ex
 
 ---
 
-### 24. Get Position Mode
+### 23. Get Position Mode
 
 获取指定交易对的持仓模式（单向/双向）。
 
@@ -1228,15 +1226,19 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&
   "success": true,
   "data": {
     "hedged": false,
-    "positionMode": "one_way"
+    "info": {
+      "dualSidePosition": false
+    }
   },
   "usage": {"cost": 1, "quota": 99}
 }
 ```
 
+> **Key field**: `data.hedged` — this value MUST be passed as the `hedged` parameter when placing orders (`POST /orders`) or closing positions (`POST /positions/close`). If the `hedged` value is unknown, call this endpoint first to obtain it; once obtained, it can be reused for subsequent requests on the same symbol and exchange.
+
 ---
 
-### 25. Set Position Mode
+### 24. Set Position Mode
 
 设置指定交易对的持仓模式。
 
@@ -1270,7 +1272,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/position/mode" \
 
 ---
 
-### 26. Create Wallet Agent
+### 25. Create Wallet Agent
 
 创建一个新的以太坊钱包代理（用于 Aster 或 Hyperliquid 交易）。
 
@@ -1312,7 +1314,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/walletagent/create" \
 
 ---
 
-### 27. List Wallet Agents
+### 26. List Wallet Agents
 
 获取当前用户的所有钱包代理列表。
 
@@ -1350,7 +1352,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/walletagent/list?exchange=hyperliqu
 
 ---
 
-### 28. Query Wallet Agent by Address
+### 27. Query Wallet Agent by Address
 
 根据钱包地址获取钱包代理信息。
 
@@ -1387,7 +1389,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/walletagent/address/0x1234567890abc
 
 ---
 
-### 29. Authorize Wallet Agent
+### 28. Authorize Wallet Agent
 
 设置钱包代理的授权状态。
 
@@ -1462,14 +1464,16 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 3. opentrade-cex  GET /leverage/current?symbol=ETH/USDT:USDT&exchangeId=binance  → check current leverage
 4. opentrade-cex  PUT /leverage/current                       → set leverage to 10x (if needed)
        {"symbol":"ETH/USDT:USDT","leverage":10,"exchangeId":"binance"}
-5. opentrade-cex  POST /orders                                → open long position
-       {"symbol":"ETH/USDT:USDT","side":"buy","type":"market","quantity":<calculated>,"exchangeId":"binance"}
-6. opentrade-cex  GET /positions                              → verify position opened
+5. opentrade-cex  GET /position/mode?symbol=ETH/USDT:USDT&exchangeId=binance  → get hedged value (if unknown)
+6. opentrade-cex  POST /orders                                → open long position (use hedged from step 5)
+       {"symbol":"ETH/USDT:USDT","side":"buy","type":"market","quantity":<calculated>,"exchangeId":"binance","hedged":false}
+7. opentrade-cex  GET /positions                              → verify position opened
 ```
 
 **Data handoff**:
 - `last` price from step 1 → calculate quantity: `$1000 / ETH_price`
 - Leverage 10x means only $100 margin needed for $1000 position
+- `data.hedged` from step 5 → pass to order request in step 6
 
 ### Workflow C: News-Driven CEX Trading
 
@@ -1545,7 +1549,6 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 | View K-line / chart data | `GET /market/klines` |
 | Check account balance | `GET /account/summary` or `GET /account/spots` |
 | Place a buy/sell order | `POST /orders` |
-| Modify an existing order | `PUT /orders/edit` |
 | Cancel an order | `DELETE /orders/:orderId` |
 | View open orders | `GET /orders/open` |
 | View closed orders | `GET /orders/closed` |
@@ -1562,7 +1565,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/walletagent/authorize" \
 - **Missing symbol** → ask user which trading pair; format as CCXT standard (e.g., `BTC/USDT` for spot, `BTC/USDT:USDT` for perpetual)
 - **Missing side** → ask user: buy or sell?
 - **Missing order type** → suggest `market` for immediate execution, `limit` for price control
-- **Missing quantity** → ask user; for futures, help calculate based on notional value and leverage
+- **Missing quantity** → ask user; for futures, help calculate based on notional value and leverage. For `POST /positions/close`, `quantity` is mandatory and must be greater than 0.
 - **Missing price** → required for limit orders; call `GET /market/ticker` to show current price as reference
 - **Missing leverage** → check current setting with `GET /leverage/current`; suggest 1x-10x for beginners
 
@@ -1623,18 +1626,29 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&excha
 **User says:** "Buy 0.01 BTC at $65,000"
 
 ```bash
+# Step 1: Get position mode (if hedged value is unknown)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
+# → {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
+
+# Step 2: Place order with hedged value from step 1
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{"symbol":"BTC/USDT:USDT","side":"buy","type":"limit","quantity":0.01,"price":65000,"exchangeId":"binance"}'
+  -d '{"symbol":"BTC/USDT:USDT","side":"buy","type":"limit","quantity":0.01,"price":65000,"exchangeId":"binance","hedged":false}'
 # → Order placed! Buy 0.01 BTC @ $65,000 (Limit) — ID: 123456789
 ```
 
 **User says:** "Close my BTC position"
 
 ```bash
+# Step 1: Get position mode (if hedged value is unknown)
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
+# → {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
+
+# Step 2: Close position with hedged value from step 1
+# Use the actual position size from GET /positions when closing the full position
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
   -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-  -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0,"exchangeId":"binance"}'
+  -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0.01,"exchangeId":"binance","hedged":false}'
 # → Position closed! Realized P&L: +$25.00
 ```
 
@@ -1652,7 +1666,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 - **Risk engine rejects order**: Display the rejection reason clearly. Common causes: price too far from market (>10%), position too large, rate limited, insufficient balance. Suggest the user adjust parameters and retry.
 - **Insufficient balance**: Check balance with `GET /account/summary` first. For futures, consider leverage — required margin = order value / leverage.
 - **Rate limited**: If 30+ requests in 1 minute, wait 60 seconds before retrying. Inform the user about the cooldown.
-- **Invalid trading pair**: Call `GET /market/metadata` to verify the symbol exists on the exchange.
+- **Close position quantity missing or zero**: For `POST /positions/close`, `quantity` must be explicitly provided and must be greater than 0. To close the full position, call `GET /positions` first and use the actual current position size.
 - **Position mode conflict**: Cannot switch position mode while holding open positions. Close all positions first.
 - **Leverage change with open positions**: Some exchanges restrict leverage changes when positions are open. Close positions or reduce size first.
 - **Order quantity precision**: Use `GET /market/metadata` to check `amountMin` and `costMin`. Ensure order meets minimum requirements.
