@@ -4,7 +4,7 @@ description: "This skill should be used when the user asks to 'place a CEX order
 license: MIT
 metadata:
   author: 6551
-  version: "1.0.1"
+  version: "1.0.2"
   homepage: "https://www.newsliquid.com"
 ---
 
