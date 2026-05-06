@@ -1,6 +1,6 @@
 ---
 name: opentrade-cex
-description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
+description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', 'check funding rate', 'get order book', 'check open interest', 'compare funding rates', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit, funding rate, order book, open interest. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
 license: MIT
 metadata:
   author: 6551
@@ -10,7 +10,7 @@ metadata:
 
 # OpenTrade CEX Trading
 
-24 API endpoints for centralized exchange trading — market data, account management, spot & futures orders, positions, and leverage.
+37 API endpoints for centralized exchange trading — market data, public metadata, account management, spot & futures orders, positions, and leverage.
 
 > **IMPORTANT**: This is a **CEX (centralized exchange)** trading skill. All trades are executed server-side with built-in risk controls — no private key management or transaction signing required.
 >
@@ -20,6 +20,11 @@ metadata:
 > - **`type`** (REQUIRED): Order type must always be specified (`market`, `limit`, `stop_market`, `take_profit_market`). Each type has different parameter requirements.
 > - **`hedged`** (REQUIRED): When placing orders (`POST /orders`) or closing positions (`POST /positions/close`), the `hedged` field is required. If the `hedged` value is unknown or not provided by the user, you **MUST** first call `GET /position/mode` to obtain `data.hedged`. Once obtained, the value can be reused for subsequent requests on the same symbol and exchange without re-fetching. Using an incorrect `hedged` value may cause order rejection or affect the wrong position.
 > - **`quantity` for close position** (REQUIRED): When closing a position, you must explicitly provide the quantity to close. `0` is not allowed. Use the actual position size from `GET /positions` when closing the full position.
+>
+> **CRITICAL — Prefer Contract (Swap) Symbol**:
+> - When `/market/metadata` returns multiple markets, **default to the perpetual/swap symbol** (e.g., `BTC/USDT:USDT`) rather than the spot symbol (e.g., `BTC/USDT`).
+> - Only use the spot symbol when the user explicitly requests spot trading.
+> - Always use `symbol` field, NOT `displaySymbol`, when making API calls.
 
 ## Pre-flight Checks
 
@@ -95,7 +100,11 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
   -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0.001,"exchangeId":"binance","hedged":false}'
 ```
 
-> **Note**: Trading pair format follows CCXT standard: `BTC/USDT` for spot, `BTC/USDT:USDT` for USDT perpetual contracts.
+> **Note**: Trading pair format follows CCXT standard:
+> - **Spot**: `BTC/USDT` (no colon, no leverage)
+> - **Perpetual futures (swap)**: `BTC/USDT:USDT` (with `:SETTLE` suffix, supports leverage) — **default choice for most trading operations**
+> 
+> Always use the exact `symbol` value returned from `GET /market/metadata` to ensure correct market type. **Prefer the contract/swap symbol by default**; use spot only when user explicitly requests it.
 
 ## Command Index
 
@@ -109,60 +118,115 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | 4 | `/open/trader/newsliquid/v1/market/base-currencies` | GET | Get base currency list (USDT, BTC, etc.) |
 | 5 | `/open/trader/newsliquid/v1/market/time` | GET | Get server time |
 
+### Public Metadata (no risk control)
+
+| # | Endpoint | Method | Description |
+|---|---|---|---|
+| 6 | `/open/trader/newsliquid/v1/public/metadata/orderbook` | GET | Get order book depth data |
+| 7 | `/open/trader/newsliquid/v1/public/metadata/tickers` | GET | Get price tickers (multiple symbols) |
+| 8 | `/open/trader/newsliquid/v1/public/metadata/ohlcv` | GET | Get OHLCV candlestick data |
+| 9 | `/open/trader/newsliquid/v1/public/metadata/trades` | GET | Get recent public trades |
+| 10 | `/open/trader/newsliquid/v1/public/metadata/time` | GET | Get exchange server time |
+| 11 | `/open/trader/newsliquid/v1/public/metadata/status` | GET | Get exchange operational status |
+| 12 | `/open/trader/newsliquid/v1/public/metadata/funding-rate` | GET | Get current funding rate (single symbol) |
+| 13 | `/open/trader/newsliquid/v1/public/metadata/funding-rates` | GET | Get funding rates (multiple symbols) |
+| 14 | `/open/trader/newsliquid/v1/public/metadata/funding-rate/history` | GET | Get historical funding rates |
+| 15 | `/open/trader/newsliquid/v1/public/metadata/funding-rate/exchanges` | GET | Get funding rate across exchanges |
+| 16 | `/open/trader/newsliquid/v1/public/metadata/funding-interval` | GET | Get funding interval |
+| 17 | `/open/trader/newsliquid/v1/public/metadata/open-interest` | GET | Get current open interest |
+| 18 | `/open/trader/newsliquid/v1/public/metadata/open-interest/history` | GET | Get historical open interest |
+
 ### Account (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 6 | `/open/trader/newsliquid/v1/account/summary` | GET | Account summary (balance, leverage, max position) |
-| 7 | `/open/trader/newsliquid/v1/account/spot` | GET | Query specific spot asset |
-| 8 | `/open/trader/newsliquid/v1/account/spots` | GET | Query all spot assets |
+| 19 | `/open/trader/newsliquid/v1/account/summary` | GET | Account summary (balance, leverage, max position) |
+| 20 | `/open/trader/newsliquid/v1/account/spot` | GET | Query specific spot asset |
+| 21 | `/open/trader/newsliquid/v1/account/spots` | GET | Query all spot assets |
 
 ### Config (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 9 | `/open/trader/newsliquid/v1/config` | GET | Get trading config |
-| 10 | `/open/trader/newsliquid/v1/config` | PUT | Update trading config |
+| 22 | `/open/trader/newsliquid/v1/config` | GET | Get trading config |
+| 23 | `/open/trader/newsliquid/v1/config` | PUT | Update trading config |
 
 ### Orders (risk control on create)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 11 | `/open/trader/newsliquid/v1/orders` | POST | Yes | Place order (limit/market/stop-loss/take-profit) |
-| 12 | `/open/trader/newsliquid/v1/orders/:orderId` | DELETE | No | Cancel order |
-| 13 | `/open/trader/newsliquid/v1/orders/open` | GET | No | List open orders |
-| 14 | `/open/trader/newsliquid/v1/orders/closed` | GET | No | List closed orders |
+| 24 | `/open/trader/newsliquid/v1/orders` | POST | Yes | Place order (limit/market/stop-loss/take-profit) |
+| 25 | `/open/trader/newsliquid/v1/orders/:orderId` | DELETE | No | Cancel order |
+| 26 | `/open/trader/newsliquid/v1/orders/open` | GET | No | List open orders |
+| 27 | `/open/trader/newsliquid/v1/orders/closed` | GET | No | List closed orders |
 
 ### Positions (risk control on close)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 15 | `/open/trader/newsliquid/v1/positions` | GET | No | List current positions |
-| 16 | `/open/trader/newsliquid/v1/positions/history` | GET | No | List historical positions |
-| 17 | `/open/trader/newsliquid/v1/positions/close` | POST | Yes | Close position (market price) |
+| 28 | `/open/trader/newsliquid/v1/positions` | GET | No | List current positions |
+| 29 | `/open/trader/newsliquid/v1/positions/history` | GET | No | List historical positions |
+| 30 | `/open/trader/newsliquid/v1/positions/close` | POST | Yes | Close position (market price) |
 
 ### Trades (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 18 | `/open/trader/newsliquid/v1/trades/history` | GET | Get trade execution history |
+| 31 | `/open/trader/newsliquid/v1/trades/history` | GET | Get trade execution history |
 
 ### Leverage & Margin (risk control on leverage change)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 19 | `/open/trader/newsliquid/v1/leverage` | GET | No | Get available leverage tiers |
-| 20 | `/open/trader/newsliquid/v1/leverage/current` | GET | No | Get current leverage setting |
-| 21 | `/open/trader/newsliquid/v1/leverage/current` | PUT | Yes | Set leverage multiplier |
-| 22 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
-| 23 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
-| 24 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
+| 32 | `/open/trader/newsliquid/v1/leverage` | GET | No | Get available leverage tiers |
+| 33 | `/open/trader/newsliquid/v1/leverage/current` | GET | No | Get current leverage setting |
+| 34 | `/open/trader/newsliquid/v1/leverage/current` | PUT | Yes | Set leverage multiplier |
+| 35 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
+| 36 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
+| 37 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
 
 ## API Reference
 
 ### 1. Get Market Metadata
 
 获取指定交易对在所有交易所的市场元数据信息（交易对列表、合约类型、杠杆范围、最小下单量等）。
+
+> **CRITICAL — Symbol Format (CCXT Standard)**:
+> 
+> **Spot trading pairs**: `BASE/QUOTE` format
+> - Example: `BTC/USDT` (spot trading, no leverage)
+> - Characteristics: `spot: true`, `swap: false`, `contract: false`, `margin: false`
+> 
+> **Perpetual futures (swap)**: `BASE/QUOTE:SETTLE` format
+> - Example: `BTC/USDT:USDT` (USDT-margined perpetual contract)
+> - Characteristics: `spot: false`, `swap: true`, `contract: true`, `margin: true`
+> - The `:SETTLE` suffix indicates the settlement currency (usually matches QUOTE)
+> 
+> **How to distinguish in `/market/metadata` response**:
+> 1. Check the `symbol` field format:
+>    - Contains `:` → Perpetual futures (e.g., `BTC/USDT:USDT`)
+>    - No `:` → Spot (e.g., `BTC/USDT`)
+> 2. Check boolean flags:
+>    - `spot: true` → Spot trading pair
+>    - `swap: true` → Perpetual futures
+>    - `contract: true` → Any derivative (futures/swap/option)
+> 3. Check `type` field: `"spot"`, `"swap"`, `"future"`, `"option"`
+> 
+> **IMPORTANT — Use `symbol`, NOT `displaySymbol`**:
+> - **Always use the `symbol` field** when calling other endpoints (ticker, orders, positions, etc.)
+> - The `displaySymbol` field is for display purposes only and may not work correctly in API calls
+> - Example: Use `symbol: "BTC/USDT:USDT"` from the response, not `displaySymbol`
+>
+> **CRITICAL — Prefer Contract (Swap) Symbol by Default**:
+> - When `/market/metadata` returns multiple markets for the same ticker (e.g., both spot `BTC/USDT` and swap `BTC/USDT:USDT`), **prioritize the contract/swap symbol** (`swap: true` or `contract: true`) unless the user explicitly requests spot trading
+> - **Why**: Most CEX trading operations (leverage, open/close positions, futures trading) require the contract symbol. Using the spot symbol for these operations will fail or produce unexpected results
+> - **Selection priority** (top to bottom):
+>   1. **Perpetual futures** (`swap: true`, symbol has `:SETTLE` suffix) — **default choice**
+>   2. **Futures** (`future: true`) — if no swap is available
+>   3. **Spot** (`spot: true`) — only when user explicitly asks for spot trading (e.g., "buy BTC spot", "spot trade")
+> - **User intent signals for spot**: "spot", "现货", "spot trading", "buy and hold"
+> - **User intent signals for contract/swap** (default): "long", "short", "leverage", "futures", "perpetual", "做多", "做空", "杠杆", "合约", "open position", "close position"
+> - When in doubt, ask the user: "Do you want to trade spot or perpetual futures?"
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/metadata?ticker=BTC" \
@@ -188,31 +252,48 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/metadata?ticker=BTC" \
         "symbol": "BTC/USDT",
         "displaySymbol": "BTC/USDT",
         "active": true,
-        "leverageMin": 1,
-        "leverageMax": 125,
+        "type": "spot",
+        "rawType": "spot",
+        "baseId": "BTC",
         "baseCurrency": "BTC",
+        "quoteId": "USDT",
         "quoteCurrency": "USDT",
-        "settleCurrency": "USDT",
+        "costMin": 5,
+        "amountMin": 0.00001,
+        "margin": true,
+        "spot": true,
+        "swap": false,
+        "future": false,
+        "option": false,
+        "contract": false
+      },
+      {
+        "exchangeId": "binance",
+        "id": "BTCUSDT",
+        "symbol": "BTC/USDT:USDT",
+        "displaySymbol": "BTC/USDT",
+        "active": true,
         "type": "swap",
         "rawType": "swap",
-        "costMin": 5.0,
+        "settleCurrency": "USDT",
+        "baseId": "BTC",
+        "baseCurrency": "BTC",
+        "quoteId": "USDT",
+        "quoteCurrency": "USDT",
+        "costMin": 50,
         "amountMin": 0.001,
-        "margin": true,
+        "margin": false,
         "spot": false,
         "swap": true,
         "future": false,
         "option": false,
         "contract": true
-      }
+      },
     ]
   },
   "usage": {"cost": 1, "quota": 99}
 }
 ```
-
-**Display to user:**
-- List available exchanges and trading pairs for the requested ticker
-- Highlight leverage range, min order size, and contract type (spot/swap/future)
 
 ---
 
@@ -343,7 +424,468 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/time" \
 
 ---
 
-### 6. Get Account Summary
+### 6. Get Order Book
+
+获取指定交易对的订单簿深度数据。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/orderbook?exchangeId=binance&symbol=BTC/USDT&limit=20" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+| `limit` | Integer (query) | No | Order book depth limit (default: 20, e.g., 20, 50, 100) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BTC/USDT",
+    "bids": [[67889.00, 0.5], [67888.00, 1.2]],
+    "asks": [[67891.00, 0.3], [67892.00, 0.8]],
+    "timestamp": 1679400000000,
+    "datetime": "2026-03-21T10:30:00Z"
+  }
+}
+```
+
+---
+
+### 7. Get Price Tickers
+
+获取指定交易所的多个交易对行情数据。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/tickers?exchangeId=binance&symbols=BTC/USDT,ETH/USDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbols` | String (query) | No | Comma-separated symbols (e.g., `BTC/USDT,ETH/USDT`). Omit for all symbols. |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "BTC/USDT": {
+      "symbol": "BTC/USDT",
+      "last": 67890.50,
+      "bid": 67889.00,
+      "ask": 67891.00,
+      "high": 68500.00,
+      "low": 66800.00,
+      "volume": 12345.678,
+      "timestamp": 1679400000000
+    },
+    "ETH/USDT": {
+      "symbol": "ETH/USDT",
+      "last": 3450.20,
+      "bid": 3449.50,
+      "ask": 3450.80,
+      "high": 3500.00,
+      "low": 3400.00,
+      "volume": 98765.432,
+      "timestamp": 1679400000000
+    }
+  }
+}
+```
+
+---
+
+### 8. Get OHLCV Data
+
+获取指定交易对的 OHLCV（开盘价、最高价、最低价、收盘价、成交量）K线数据。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/ohlcv?exchangeId=binance&symbol=BTC/USDT&timeframe=1h&limit=50" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+| `timeframe` | String (query) | No | Timeframe (default: `1h`): `1m`, `5m`, `15m`, `1h`, `4h`, `1d` |
+| `since` | Integer (query) | No | Timestamp in milliseconds to fetch data from |
+| `limit` | Integer (query) | No | Number of candles (default: 50) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "timestamp": 1679400000000,
+      "open": 67800.00,
+      "high": 67900.00,
+      "low": 67750.00,
+      "close": 67850.00,
+      "volume": 123.456
+    }
+  ]
+}
+```
+
+---
+
+### 9. Get Public Trades
+
+获取指定交易对的最近公开成交记录。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/trades?exchangeId=binance&symbol=BTC/USDT&limit=20" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+| `since` | Integer (query) | No | Timestamp in milliseconds to fetch trades from |
+| `limit` | Integer (query) | No | Number of trades (default: 20) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "123456",
+      "symbol": "BTC/USDT",
+      "price": 67890.50,
+      "amount": 0.01,
+      "cost": 678.905,
+      "side": "buy",
+      "timestamp": 1679400000000,
+      "datetime": "2026-03-21T10:30:00Z",
+      "takerOrMaker": "taker"
+    }
+  ]
+}
+```
+
+---
+
+### 10. Get Exchange Time
+
+获取指定交易所的服务器时间。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/time?exchangeId=binance" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "timestamp": 1679400000000
+  }
+}
+```
+
+---
+
+### 11. Get Exchange Status
+
+获取指定交易所的运行状态。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/status?exchangeId=binance" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "ok",
+    "updated": 1679400000000
+  }
+}
+```
+
+---
+
+### 12. Get Funding Rate
+
+获取指定永续合约交易对的当前资金费率。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate?exchangeId=binance&symbol=BTC/USDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BTC/USDT",
+    "fundingRate": 0.0001,
+    "timestamp": 1679400000000,
+    "datetime": "2026-03-21T10:30:00Z",
+    "markPrice": 67890.50,
+    "indexPrice": 67885.00,
+    "nextFundingTimestamp": 1679428800000
+  }
+}
+```
+
+---
+
+### 13. Get Funding Rates
+
+获取指定交易所多个永续合约交易对的资金费率。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rates?exchangeId=binance&symbols=BTC/USDT,ETH/USDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbols` | String (query) | No | Comma-separated symbols. Omit for all symbols. |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "BTC/USDT": {
+      "symbol": "BTC/USDT",
+      "fundingRate": 0.0001,
+      "timestamp": 1679400000000,
+      "datetime": "2026-03-21T10:30:00Z",
+      "markPrice": 67890.50,
+      "indexPrice": 67885.00,
+      "nextFundingTimestamp": 1679428800000
+    }
+  }
+}
+```
+
+---
+
+### 14. Get Funding Rate History
+
+获取指定永续合约交易对的历史资金费率。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate/history?exchangeId=binance&symbol=BTC/USDT&limit=20" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | No | Trading pair (e.g., `BTC/USDT`) |
+| `since` | Integer (query) | No | Timestamp in milliseconds to fetch data from |
+| `limit` | Integer (query) | No | Number of records (default: 20) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "symbol": "BTC/USDT",
+      "fundingRate": 0.0001,
+      "timestamp": 1679400000000,
+      "datetime": "2026-03-21T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 15. Get Funding Rate Across Exchanges
+
+获取指定交易对在多个交易所的资金费率对比。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate/exchanges?exchangeIds=binance,bybit,okx&symbol=BTC/USDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeIds` | String (query) | Yes | Comma-separated exchange IDs (e.g., `binance,bybit,okx`) |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "binance": {
+      "symbol": "BTC/USDT",
+      "fundingRate": 0.0001,
+      "timestamp": 1679400000000,
+      "datetime": "2026-03-21T10:30:00Z",
+      "markPrice": 67890.50,
+      "indexPrice": 67885.00,
+      "nextFundingTimestamp": 1679428800000
+    },
+    "bybit": {
+      "symbol": "BTC/USDT",
+      "fundingRate": 0.00012,
+      "timestamp": 1679400000000,
+      "datetime": "2026-03-21T10:30:00Z",
+      "markPrice": 67891.00,
+      "indexPrice": 67886.00,
+      "nextFundingTimestamp": 1679428800000
+    }
+  }
+}
+```
+
+---
+
+### 16. Get Funding Interval
+
+获取指定永续合约交易对的资金费率结算间隔。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-interval?exchangeId=binance&symbol=BTC/USDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BTC/USDT",
+    "interval": "8h"
+  }
+}
+```
+
+---
+
+### 17. Get Current Open Interest
+
+获取指定永续合约交易对的当前持仓量。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest?exchangeId=binance&symbol=BTC/USDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BTC/USDT",
+    "openInterestAmount": 12345.67,
+    "openInterestValue": 838500000.00,
+    "timestamp": 1679400000000,
+    "datetime": "2026-03-21T10:30:00Z"
+  }
+}
+```
+
+---
+
+### 18. Get Open Interest History
+
+获取指定永续合约交易对的历史持仓量数据。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest/history?exchangeId=binance&symbol=BTC/USDT&timeframe=1h&limit=50" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `exchangeId` | String (query) | Yes | Exchange ID |
+| `symbol` | String (query) | Yes | Trading pair (e.g., `BTC/USDT`) |
+| `timeframe` | String (query) | No | Timeframe (default: `1h`): `5m`, `15m`, `1h`, `4h` |
+| `since` | Integer (query) | No | Timestamp in milliseconds to fetch data from |
+| `limit` | Integer (query) | No | Number of records |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "symbol": "BTC/USDT",
+      "openInterestAmount": 12345.67,
+      "openInterestValue": 838500000.00,
+      "timestamp": 1679400000000,
+      "datetime": "2026-03-21T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 19. Get Account Summary
 
 获取指定交易所的账户余额摘要信息，包括总余额、可用余额、杠杆分析等。
 
@@ -409,7 +951,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/summary?exchangeId=binance&
 
 ---
 
-### 7. Get Spot Asset
+### 20. Get Spot Asset
 
 查询指定交易所和交易对的现货资产持有信息。
 
@@ -449,7 +991,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spot?exchangeId=binance&sym
 
 ---
 
-### 8. Get All Spot Assets
+### 21. Get All Spot Assets
 
 获取指定交易所的所有现货资产列表。
 
@@ -500,7 +1042,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spots?exchangeId=binance" \
 
 ---
 
-### 9. Get Trading Config
+### 22. Get Trading Config
 
 获取用户的交易配置摘要（不包含密钥敏感信息）。
 
@@ -536,7 +1078,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/config" \
 
 ---
 
-### 10. Update Trading Config
+### 23. Update Trading Config
 
 更新用户的交易配置，包括默认交易所、杠杆和交易所凭证。
 
@@ -580,7 +1122,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/config" \
 
 ---
 
-### 11. Place Order (Risk Controlled)
+### 24. Place Order (Risk Controlled)
 
 在指定交易所下单。支持多种订单类型。
 
@@ -708,7 +1250,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
 
 ---
 
-### 12. Cancel Order
+### 25. Cancel Order
 
 取消指定的挂单。
 
@@ -739,7 +1281,7 @@ curl -s -X DELETE "$BASE_URL/open/trader/newsliquid/v1/orders/123456789?exchange
 
 ---
 
-### 13. List Open Orders
+### 26. List Open Orders
 
 获取当前所有未成交的挂单。
 
@@ -787,7 +1329,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance&symb
 
 ---
 
-### 14. List Closed Orders
+### 27. List Closed Orders
 
 获取已完成（成交/取消）的历史订单。
 
@@ -808,7 +1350,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/closed?exchangeId=binance&sy
 
 ---
 
-### 15. List Current Positions
+### 28. List Current Positions
 
 获取当前所有持仓信息。
 
@@ -856,7 +1398,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
 
 ---
 
-### 16. List Historical Positions
+### 29. List Historical Positions
 
 获取已平仓的历史持仓记录（包含关联的交易明细）。
 
@@ -944,7 +1486,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions/history?exchangeId=binanc
 
 ---
 
-### 17. Close Position (Risk Controlled)
+### 30. Close Position (Risk Controlled)
 
 关闭指定的持仓（全部或部分平仓）。
 
@@ -993,7 +1535,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 
 ---
 
-### 18. Get Trade History
+### 31. Get Trade History
 
 获取历史成交记录。
 
@@ -1040,7 +1582,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/trades/history?exchangeId=binance&s
 
 ---
 
-### 19. Get Leverage Tiers
+### 32. Get Leverage Tiers
 
 获取指定交易对的杠杆档位（梯度）信息。
 
@@ -1097,7 +1639,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage?symbol=BTC/USDT:USDT&excha
 
 ---
 
-### 20. Get Current Leverage
+### 33. Get Current Leverage
 
 获取指定交易对当前设置的杠杆倍数和保证金模式。
 
@@ -1130,7 +1672,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage/current?symbol=BTC/USDT:US
 
 ---
 
-### 21. Set Leverage (Risk Controlled)
+### 34. Set Leverage (Risk Controlled)
 
 设置指定交易对的杠杆倍数。
 
@@ -1166,7 +1708,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 
 ---
 
-### 22. Get Margin Mode
+### 35. Get Margin Mode
 
 获取指定交易对的保证金模式（cross 全仓 / isolated 逐仓）。
 
@@ -1195,7 +1737,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/margin/mode?symbol=BTC/USDT:USDT&ex
 
 ---
 
-### 23. Get Position Mode
+### 36. Get Position Mode
 
 获取指定交易对的持仓模式（单向/双向）。
 
@@ -1229,7 +1771,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&
 
 ---
 
-### 24. Set Position Mode
+### 37. Set Position Mode
 
 设置指定交易对的持仓模式。
 
@@ -1376,6 +1918,14 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/position/mode" \
 |---|---|
 | Check CEX market price | `GET /market/ticker` |
 | View K-line / chart data | `GET /market/klines` |
+| Get order book depth | `GET /public/metadata/orderbook` |
+| Get multiple tickers | `GET /public/metadata/tickers` |
+| Get OHLCV candles | `GET /public/metadata/ohlcv` |
+| View recent public trades | `GET /public/metadata/trades` |
+| Check funding rate | `GET /public/metadata/funding-rate` |
+| Compare funding rates across exchanges | `GET /public/metadata/funding-rate/exchanges` |
+| Check current open interest | `GET /public/metadata/open-interest` |
+| Check open interest history | `GET /public/metadata/open-interest/history` |
 | Check account balance | `GET /account/summary` or `GET /account/spots` |
 | Place a buy/sell order | `POST /orders` |
 | Cancel an order | `DELETE /orders/:orderId` |
@@ -1515,7 +2065,18 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 
 - All endpoints require `Authorization: Bearer <token>` header
 - Supported exchanges: `binance`, `bybit`, `okx`, `hyperliquid`, `aster`
-- Trading pair format follows **CCXT standard**: `BTC/USDT` for spot, `BTC/USDT:USDT` for USDT perpetual contracts
+- **Trading pair format follows CCXT standard**:
+  - **Spot**: `BTC/USDT` (no colon suffix)
+    - Characteristics: `spot: true`, `swap: false`, `contract: false`, `leverageMax: 1`
+    - Use for spot trading without leverage
+  - **Perpetual futures (swap)**: `BTC/USDT:USDT` (with `:SETTLE` suffix)
+    - Characteristics: `spot: false`, `swap: true`, `contract: true`, `leverageMax: 125`
+    - The `:SETTLE` suffix indicates settlement currency (usually matches quote currency)
+    - Use for leveraged perpetual contract trading
+  - **Always use the exact `symbol` value from `GET /market/metadata` response** to ensure correct market type
+  - **Always use `symbol`, NOT `displaySymbol`** when calling API endpoints (`displaySymbol` is for display only)
+  - **Default to contract (swap) symbol** when multiple markets exist for the same ticker — only use spot when user explicitly asks for spot trading
+  - **Quick check**: If `symbol` contains `:` → it's a perpetual futures contract; no `:` → it's spot
 - The API routes through the CEX gateway with built-in risk controls — trades execute server-side
 - No private keys or transaction signing involved — this is CEX trading via API
 - CEX uses **standard amount units** (e.g., `0.1 BTC`), unlike DEX which uses minimal units (wei/lamports)
