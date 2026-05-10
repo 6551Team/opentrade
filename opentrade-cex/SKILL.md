@@ -10,7 +10,7 @@ metadata:
 
 # OpenTrade CEX Trading
 
-39 API endpoints for centralized exchange trading — market data, public metadata, public market data (index constituents / smart money), account management, spot & futures orders, positions, and leverage.
+39 API endpoints for centralized exchange trading — market data, public metadata, account management, spot & futures orders, positions, and leverage.
 
 > **IMPORTANT**: This is a **CEX (centralized exchange)** trading skill. All trades are executed server-side with built-in risk controls — no private key management or transaction signing required.
 >
@@ -135,15 +135,8 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | 16 | `/open/trader/newsliquid/v1/public/metadata/funding-interval` | GET | Get funding interval |
 | 17 | `/open/trader/newsliquid/v1/public/metadata/open-interest` | GET | Get current open interest |
 | 18 | `/open/trader/newsliquid/v1/public/metadata/open-interest/history` | GET | Get historical open interest |
-
-### Public Market Data (no risk control)
-
-These endpoints call the Binance public API directly to obtain data that is not exposed via the standard `/public/metadata/*` routes. They only support Binance perpetual contracts and use the raw Binance symbol format (e.g., `BTCUSDT`, not `BTC/USDT`).
-
-| # | Endpoint | Method | Description |
-|---|---|---|---|
-| 19 | `/open/trader/newsliquid/v1/public/market/index-constituents` | GET | Get contract index price constituents (Binance perpetual) |
-| 20 | `/open/trader/newsliquid/v1/public/market/smart-money` | GET | Get smart money signal overview (Binance perpetual) |
+| 19 | `/open/trader/newsliquid/v1/public/market/index-constituents` | GET | Get contract index price constituents |
+| 20 | `/open/trader/newsliquid/v1/public/market/smart-money` | GET | Get smart money signal overview |
 
 ### Account (no risk control)
 
@@ -896,9 +889,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest/histo
 
 ### 19. Get Index Constituents
 
-获取 Binance 永续合约指数价格的成分币种及其权重（直接调用 Binance 官方公共 API，不经过内部风控）。
-
-> **Note**: This endpoint calls `https://fapi.binance.com/fapi/v1/constituents` directly. Only supports Binance perpetual contracts. Symbol must be the raw Binance format (e.g., `BTCUSDT`), not CCXT format (`BTC/USDT:USDT`).
+获取永续合约指数价格的成分币种及其权重。
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/index-constituents?symbol=BTCUSDT" \
@@ -909,7 +900,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/index-constituents?sy
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `symbol` | String (query) | Yes | Binance perpetual symbol in raw format (e.g., `BTCUSDT`, `ETHUSDT`). Case-insensitive, will be uppercased. |
+| `symbol` | String (query) | Yes | Perpetual symbol in raw format (e.g., `BTCUSDT`, `ETHUSDT`). Case-insensitive, will be uppercased. |
 
 **Response:**
 ```json
@@ -936,9 +927,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/index-constituents?sy
 
 ### 20. Get Smart Money Signal
 
-获取 Binance 永续合约的"聪明钱"信号概览（直接调用 Binance 官方数据接口）。聪明钱信号反映大资金账户在该合约上的多空倾向与持仓变化。
-
-> **Note**: This endpoint calls `https://www.binance.com/bapi/futures/v1/public/future/smart-money/signal/overview` directly. Only supports Binance perpetual contracts. Symbol must be the raw Binance format (e.g., `BTCUSDT`).
+获取永续合约的"聪明钱"信号概览。聪明钱信号反映大资金账户在该合约上的多空倾向与持仓变化。
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/smart-money?symbol=BTCUSDT" \
@@ -949,9 +938,9 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/smart-money?symbol=BT
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `symbol` | String (query) | Yes | Binance perpetual symbol in raw format (e.g., `BTCUSDT`). Case-insensitive, will be uppercased. |
+| `symbol` | String (query) | Yes | Perpetual symbol in raw format (e.g., `BTCUSDT`). Case-insensitive, will be uppercased. |
 
-**Response:** Binance upstream JSON structure is returned as-is. Typical fields include the symbol, long/short ratios of top traders, position deltas, and signal timestamp. Structure may evolve with upstream changes — read the raw response before building downstream logic.
+**Response:** Upstream JSON structure is returned as-is. Typical fields include the symbol, long/short ratios of top traders, position deltas, and signal timestamp. Structure may evolve with upstream changes — read the raw response before building downstream logic.
 
 ```json
 {
@@ -2013,8 +2002,8 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/position/mode" \
 | Compare funding rates across exchanges | `GET /public/metadata/funding-rate/exchanges` |
 | Check current open interest | `GET /public/metadata/open-interest` |
 | Check open interest history | `GET /public/metadata/open-interest/history` |
-| Get index price constituents (Binance) | `GET /public/market/index-constituents` |
-| Get smart money signal (Binance) | `GET /public/market/smart-money` |
+| Get index price constituents | `GET /public/market/index-constituents` |
+| Get smart money signal | `GET /public/market/smart-money` |
 | Check account balance | `GET /account/summary` or `GET /account/spots` |
 | Place a buy/sell order | `POST /orders` |
 | Cancel an order | `DELETE /orders/:orderId` |
