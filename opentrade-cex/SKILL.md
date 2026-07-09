@@ -1,6 +1,6 @@
 ---
 name: opentrade-cex
-description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', 'check funding rate', 'get order book', 'check open interest', 'compare funding rates', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit, funding rate, order book, open interest. This is for centralized exchange operations only. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances (use opentrade-portfolio), on-chain market data (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
+description: "This skill should be used when the user asks to 'place a CEX order', 'trade on centralized exchange', 'buy BTC on CEX', 'sell ETH futures', 'open a long position', 'open a short position', 'close my position', 'set leverage', 'check my CEX balance', 'show my open orders', 'cancel my order', 'check CEX ticker', 'get K-line data', 'set margin mode', 'check my CEX positions', 'view trade history', 'show my holdings', 'show my orders', 'query my positions', '查询持仓', '查询订单', '交易历史', '成交记录', 'check funding rate', 'get order book', 'check open interest', 'compare funding rates', or mentions CEX trading, futures, contracts, leverage, margin, limit orders, market orders, stop-loss, take-profit, funding rate, order book, open interest. For user-specific holdings, positions, orders, closed orders, or trade history, use this CEX skill first; only fall back to DEX/on-chain skills if the CEX query returns no relevant data or the user explicitly asks for on-chain wallet data. Do NOT use for DEX swaps (use opentrade-dex-swap), on-chain balances after CEX fallback (use opentrade-portfolio), on-chain market data after CEX fallback (use opentrade-market), token search (use opentrade-token), custodial wallet (use opentrade-wallet), or transaction broadcasting (use opentrade-gateway)."
 license: MIT
 metadata:
   author: 6551
@@ -32,7 +32,7 @@ Every time before running any CEX command, always follow these steps in order:
 
 1. Find or create a `.env` file in the project root to load the API credentials:
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -42,11 +42,15 @@ Every time before running any CEX command, always follow these steps in order:
 2. Set the base URL and auth header:
   ```bash
   BASE_URL="https://ai.6551.io"
-  AUTH_HEADER="Authorization: Bearer $OPEN_TOKEN"
+  AUTH_HEADER="Authorization: Bearer $OPENNEWS_TOKEN"
   ```
 
 ## Skill Routing
 
+- For user-specific holdings/assets, positions, open orders, closed orders, or trade/trading history, **query CEX first** with this skill. If CEX returns no relevant records, then fall back to DEX/on-chain skills:
+  - holdings / assets → `opentrade-portfolio`
+  - on-chain public trade logs / swap activity → `opentrade-market`
+  - broadcast transaction order status → `opentrade-gateway`
 - For DEX swaps / on-chain token exchange → use `opentrade-dex-swap`
 - For on-chain wallet balances / portfolio → use `opentrade-portfolio`
 - For on-chain market data / smart money signals → use `opentrade-market`
@@ -1910,6 +1914,23 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/position/mode" \
 5. Combine and present unified portfolio report
 ```
 
+### Workflow H: User Query Fallback for Holdings, Orders, and Trade History
+
+> User: "查询我的持仓 / 订单 / 交易历史"
+
+```
+1. opentrade-cex   GET /account/summary or GET /account/spots       → CEX balances / spot holdings
+2. opentrade-cex   GET /positions                                  → CEX current positions
+3. opentrade-cex   GET /orders/open and GET /orders/closed          → CEX open / historical orders
+4. opentrade-cex   GET /trades/history or GET /positions/history    → CEX execution / position history
+5. If the CEX response is empty or not relevant:
+   - [opentrade-portfolio]  Query on-chain wallet holdings
+   - [opentrade-market]     Query public on-chain token trade logs / swap activity
+   - [opentrade-gateway]    Query on-chain broadcast order status when an orderId is provided
+```
+
+Only start directly with DEX/on-chain tools when the user explicitly says "on-chain", "wallet", "DEX", provides a wallet address/chain, or asks for public token swap activity rather than their personal CEX records.
+
 ## Operation Flow
 
 ### Step 1: Identify Intent
@@ -2087,4 +2108,4 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 - **Success response**: `{"success": true, "data": {...}, "usage": {"cost": 1, "quota": 99}}`
 - **Error response (upstream)**: `{"success": false, "code": "INVALID_REQUEST", "error": "message"}`
 - **Error response (gateway)**: `{"code": 400, "message": "error message", "error": "details"}`
-- The skill uses the same `OPEN_TOKEN` as all other opentrade skills — no additional configuration needed
+- The skill uses the same `OPENNEWS_TOKEN` as all other opentrade skills — no additional configuration needed

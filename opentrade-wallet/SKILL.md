@@ -1,6 +1,6 @@
 ---
 name: opentrade-wallet
-description: "This skill should be used when the user asks to 'create a custodial wallet', 'create a managed wallet', 'get my wallet address', 'show my custodial account', 'custodial swap', 'swap with managed wallet', 'withdraw from custodial wallet', 'withdraw BNB', 'withdraw SOL', 'send native tokens from custodial wallet', or mentions creating, managing, swapping, or withdrawing with a custodial (managed/hosted) wallet. Only supports BSC and Solana networks. Do NOT use for non-custodial wallet operations, general balance queries (use opentrade-portfolio), or swap quotes without custodial execution (use opentrade-dex-swap)."
+description: "This skill should be used when the user asks to 'create a custodial wallet', 'create a managed wallet', 'get my wallet address', 'show my custodial account', 'custodial swap', 'swap with managed wallet', 'withdraw from custodial wallet', 'withdraw BNB', 'withdraw SOL', 'send native tokens from custodial wallet', or mentions creating, managing, swapping, or withdrawing with a custodial (managed/hosted) wallet. Only supports BSC and Solana networks. For generic user holdings/assets/positions/orders/trade-history queries, use opentrade-cex first; only fall back to DEX/on-chain wallet skills if CEX returns no relevant data or the user explicitly asks for custodial/on-chain wallet data. Do NOT use for non-custodial wallet operations, general on-chain balance queries (use opentrade-portfolio after CEX fallback), or swap quotes without custodial execution (use opentrade-dex-swap)."
 license: Apache-2.0
 metadata:
   author: 6551
@@ -22,7 +22,7 @@ Every time before running any custodial wallet command, always follow these step
 
 1. Find or create a `.env` file in the project root to load the API credentials:
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -32,7 +32,7 @@ Every time before running any custodial wallet command, always follow these step
 2. Set the base URL and auth header:
   ```bash
   BASE_URL="https://ai.6551.io"
-  AUTH_HEADER="Authorization: Bearer $OPEN_TOKEN"
+  AUTH_HEADER="Authorization: Bearer $OPENNEWS_TOKEN"
   ```
 
 ## Skill Routing
@@ -40,7 +40,8 @@ Every time before running any custodial wallet command, always follow these step
 - For swap quotes (read-only price estimate) → use `opentrade-dex-swap`
 - For token search / metadata → use `opentrade-token`
 - For market prices → use `opentrade-market`
-- For wallet balances / portfolio → use `opentrade-portfolio`
+- For generic holdings/assets/positions/orders/trade history → use `opentrade-cex` first
+- For wallet balances / portfolio after CEX fallback → use `opentrade-portfolio`
 - For transaction broadcasting (non-custodial) → use `opentrade-gateway`
 - For custodial wallet management → use this skill (`opentrade-wallet`)
 

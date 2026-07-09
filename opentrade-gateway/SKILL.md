@@ -1,6 +1,6 @@
 ---
 name: opentrade-gateway
-description: "This skill should be used when the user asks to 'broadcast transaction', 'send tx', 'estimate gas', 'simulate transaction', 'check tx status', 'track my transaction', 'get gas price', 'gas limit', 'broadcast signed tx', or mentions broadcasting transactions, sending transactions on-chain, gas estimation, transaction simulation, tracking broadcast orders, or checking transaction status. Covers gas price, gas limit estimation, transaction simulation, transaction broadcasting, and order tracking across XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. Do NOT use for swap quote or execution — use opentrade-dex-swap instead. Do NOT use for general programming questions about transaction handling."
+description: "This skill should be used when the user asks to 'broadcast transaction', 'send tx', 'estimate gas', 'simulate transaction', 'check tx status', 'track my transaction', 'get gas price', 'gas limit', 'broadcast signed tx', or mentions broadcasting transactions, sending transactions on-chain, gas estimation, transaction simulation, tracking broadcast orders, or checking on-chain transaction status. Covers gas price, gas limit estimation, transaction simulation, transaction broadcasting, and broadcast order tracking across XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. For user-specific exchange orders, positions, or trade history, use opentrade-cex first; use this skill only for on-chain broadcast/transaction order status, typically when an orderId or signed transaction is involved. Do NOT use for swap quote or execution — use opentrade-dex-swap instead. Do NOT use for general programming questions about transaction handling."
 license: Apache-2.0
 metadata:
   author: 6551
@@ -40,7 +40,7 @@ Every time before running any `opentrade` command, always follow these steps in 
    ```
 4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -90,6 +90,7 @@ opentrade trade routers
 
 ## Skill Routing
 
+- For user-specific exchange orders, positions, holdings, or trade history → use `opentrade-cex` first. Use this skill only for on-chain broadcast order status or transaction tracking after CEX has no relevant records, or when the user explicitly provides an on-chain orderId/tx.
 - For swap quote and execution → use `opentrade-dex-swap`
 - For market prices → use `opentrade-market`
 - For token search → use `opentrade-token`

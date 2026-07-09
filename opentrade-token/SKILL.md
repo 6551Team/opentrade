@@ -1,6 +1,6 @@
 ---
 name: opentrade-token
-description: "This skill should be used when the user asks to 'find a token', 'search for a token', 'look up PEPE', 'what's trending', 'top tokens', 'trending tokens on Solana', 'token rankings', 'who holds this token', 'holder distribution', 'token market cap', 'token liquidity', 'research a token', 'tell me about this token', 'token info', or mentions searching for tokens by name or address, discovering trending tokens, viewing token rankings, checking holder distribution, or analyzing token market cap and liquidity. Covers token search, metadata, market cap, liquidity, volume, trending token rankings, and holder analysis across XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. Do NOT use when the user says only a single generic word like 'tokens' or 'crypto' without specifying a token name, action, or question. For simple current price checks, price charts, candlestick data, or trade history, use opentrade-market instead. For meme token safety analysis, developer reputation, rug pull checks, bundle/sniper detection, or finding tokens by same creator, use opentrade-market instead."
+description: "This skill should be used when the user asks to 'find a token', 'search for a token', 'look up PEPE', 'what's trending', 'top tokens', 'trending tokens on Solana', 'token rankings', 'who holds this token', 'holder distribution', 'token market cap', 'token liquidity', 'research a token', 'tell me about this token', 'token info', or mentions searching for tokens by name or address, discovering trending tokens, viewing token rankings, checking holder distribution, or analyzing token market cap and liquidity. Covers token search, metadata, market cap, liquidity, volume, trending token rankings, and holder analysis across XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. Do NOT use when the user says only a single generic word like 'tokens' or 'crypto' without specifying a token name, action, or question. For simple current price checks, price charts, candlestick data, or public on-chain token trade logs, use opentrade-market instead. For personal holdings, orders, positions, or trade history, use opentrade-cex first; only fall back to DEX/on-chain skills if CEX returns no relevant data. For meme token safety analysis, developer reputation, rug pull checks, bundle/sniper detection, or finding tokens by same creator, use opentrade-market instead."
 license: Apache-2.0
 metadata:
   author: 6551
@@ -40,7 +40,7 @@ Every time before running any `opentrade` command, always follow these steps in 
    ```
 4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -90,7 +90,8 @@ opentrade trade routers
 
 ## Skill Routing
 
-- For real-time prices / K-lines / trade history → use `opentrade-market`
+- For real-time prices / K-lines / public on-chain token trade logs → use `opentrade-market`
+- For personal holdings, positions, orders, or trade history → use `opentrade-cex` first; only then fall back to DEX/on-chain skills when CEX has no relevant data
 - For swap execution → use `opentrade-dex-swap`
 - For transaction broadcasting → use `opentrade-gateway`
 - For wallet balances / portfolio → use `opentrade-portfolio`

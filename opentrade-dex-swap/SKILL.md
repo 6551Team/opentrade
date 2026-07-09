@@ -1,6 +1,6 @@
 ---
 name: opentrade-dex-swap
-description: "This skill should be used when the user asks to 'swap tokens', 'trade OKB for USDC', 'buy tokens', 'sell tokens', 'exchange crypto', 'convert tokens', 'swap SOL for USDC', 'get a swap quote', 'execute a trade', 'find the best swap route', 'cheapest way to swap', 'optimal swap', 'compare swap rates', or mentions swapping, trading, buying, selling, or exchanging tokens on XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, or any of 20+ supported chains. Aggregates liquidity from 500+ DEX sources for optimal routing and price. Supports slippage control, price impact protection, and cross-DEX route optimization. Do NOT use for general programming questions about swap code, or for analytical questions about historical swap volume."
+description: "This skill should be used when the user asks to 'swap tokens', 'trade OKB for USDC', 'buy tokens', 'sell tokens', 'exchange crypto', 'convert tokens', 'swap SOL for USDC', 'get a swap quote', 'execute a trade', 'find the best swap route', 'cheapest way to swap', 'optimal swap', 'compare swap rates', or mentions swapping, trading, buying, selling, or exchanging tokens on XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, or any of 20+ supported chains. Aggregates liquidity from 500+ DEX sources for optimal routing and price. Supports slippage control, price impact protection, and cross-DEX route optimization. For user-specific holdings, orders, positions, or trade history, use opentrade-cex first and only fall back to DEX/on-chain skills if CEX returns no relevant data. Do NOT use for general programming questions about swap code, or for analytical questions about historical swap volume."
 license: Apache-2.0
 metadata:
   author: 6551
@@ -40,7 +40,7 @@ Every time before running any `opentrade` command, always follow these steps in 
    ```
 4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -90,6 +90,7 @@ opentrade trade routers
 
 ## Skill Routing
 
+- For user-specific holdings, positions, orders, or trade history → use `opentrade-cex` first; this DEX swap skill is only for quote/approve/swap execution.
 - For token search → use `opentrade-token`
 - For market prices → use `opentrade-market`
 - For transaction broadcasting → use `opentrade-gateway`

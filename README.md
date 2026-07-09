@@ -16,7 +16,7 @@ OpenTrade provides **7 specialized skills** covering the full spectrum of blockc
 | 4 | [opentrade-token](#-opentrade-token) | Token information (search, info, holders, trending) |
 | 5 | [opentrade-portfolio](#-opentrade-portfolio) | Wallet / Portfolio (balances, portfolio value, transaction history) |
 | 6 | [opentrade-wallet](#-opentrade-wallet) | Custodial wallet management (BSC & Solana) |
-| 7 | [opentrade-transaction](#-opentrade-transaction) | Transaction management (gas, simulation, broadcast, tracking) |
+| 7 | [opentrade-gateway](#-opentrade-gateway) | Transaction management (gas, simulation, broadcast, tracking) |
 
 ---
 
@@ -27,14 +27,26 @@ OpenTrade provides **7 specialized skills** covering the full spectrum of blockc
 **2. Set environment variable**
 
 ```bash
-export OPEN_TOKEN="your_token_here"
+export OPENNEWS_TOKEN="your_token_here"
 ```
 
 Or add to your `.env` file:
 
 ```
-OPEN_TOKEN=your_token_here
+OPENNEWS_TOKEN=your_token_here
 ```
+
+## Query Routing Priority
+
+For user-specific holdings/assets, positions, orders, closed orders, or trade history, query **CEX first** with `opentrade-cex`.
+
+Only fall back to DEX/on-chain skills when the CEX query returns no relevant data, or when the user explicitly asks for wallet, DEX, or on-chain data:
+
+| User asks for | First | Fallback if no CEX data |
+|---|---|---|
+| Holdings / assets / positions | `opentrade-cex` | `opentrade-portfolio` |
+| Open / closed orders | `opentrade-cex` | `opentrade-gateway` only for on-chain broadcast order status |
+| Trade / transaction history | `opentrade-cex` | `opentrade-market` for public on-chain token trade logs |
 
 ---
 
@@ -155,7 +167,7 @@ Discover and analyze tokens.
 
 ## 💰 opentrade-portfolio
 
-Query on-chain portfolio balances and transaction history.
+Query on-chain portfolio balances after CEX fallback, or when the user explicitly asks for wallet/DEX/on-chain balances.
 
 | Feature | Description |
 |---------|-------------|
@@ -184,7 +196,7 @@ Manage custodial wallets powered by [Turnkey](https://www.turnkey.com/). **Suppo
 
 ---
 
-## 📡 opentrade-transaction
+## 📡 opentrade-gateway
 
 Manage blockchain transactions end-to-end.
 

@@ -1,6 +1,6 @@
 ---
 name: opentrade-market
-description: "Use this skill when users want live on-chain market data: token prices, price charts (K-line, OHLC), trade history, swap activity. Also, it covers on-chain signals — smart money, whale, and KOL wallet activity, large trades, and signal-supported chains. For meme tokens: scanning new launches, checking dev wallets, developer reputation, rug pull detection, rug pull history, tokens by same creator, detecting bundles or snipers, bonding curves %, flagging suspicious launches, and meme token safety checks. For token search, market cap, liquidity, trending tokens, or holder distribution, use opentrade-token instead."
+description: "Use this skill when users want live on-chain market data: token prices, price charts (K-line, OHLC), public on-chain trade logs, and swap activity. Also, it covers on-chain signals — smart money, whale, and KOL wallet activity, large trades, and signal-supported chains. For user-specific holdings, orders, positions, or personal trade history, use opentrade-cex first and only fall back here if CEX has no relevant data or the user explicitly asks for on-chain/DEX activity. For token search, market cap, liquidity, trending tokens, or holder distribution, use opentrade-token instead."
 license: Apache-2.0
 metadata:
   author: 6551
@@ -40,7 +40,7 @@ Every time before running any `opentrade` command, always follow these steps in 
    ```
 4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -90,9 +90,10 @@ opentrade trade routers
 
 ## Skill Routing
 
+- For user-specific holdings, orders, positions, or personal trade/trading history, query `opentrade-cex` first. Use this skill only for public on-chain trade logs/swap activity after CEX returns no relevant data, or when the user explicitly asks for on-chain/DEX market activity.
 - For token search / metadata / rankings / holder analysis → use `opentrade-token`
 - For swap execution → use `opentrade-dex-swap`
-- For transaction broadcasting → use `opentrade-transaction`
+- For transaction broadcasting → use `opentrade-gateway`
 - For wallet balances / portfolio → use `opentrade-portfolio`
 - Signal data (smart money / whale / KOL buy signals, signal-supported chains) → use `opentrade-market`
 - Meme pump scanning (token lists, dev info, bundle detection, aped wallets) → use `opentrade-market`

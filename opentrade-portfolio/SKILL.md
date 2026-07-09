@@ -1,6 +1,6 @@
 ---
 name: opentrade-portfolio
-description: "This skill should be used when the user asks to 'check my wallet balance', 'show my token holdings', 'how much OKB do I have', 'what tokens do I have', 'check my portfolio value', 'view my assets', 'how much is my portfolio worth', 'what\\'s in my wallet', or mentions checking wallet balance, total assets, token holdings, portfolio value, remaining funds, DeFi positions, or multi-chain balance lookup. Supports XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. Do NOT use for general programming questions about balance variables or API documentation. Do NOT use when the user is asking how to build or integrate a balance feature into code."
+description: "This skill should be used when the user asks to check on-chain wallet balances, wallet token holdings, portfolio value, DeFi positions, multi-chain balance lookup, or explicitly provides a wallet address/chain. Supports XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. For generic user-specific holdings/assets/positions queries such as 'show my holdings', 'view my assets', '查询持仓', or '我的资产', use opentrade-cex first; use this on-chain portfolio skill only if the CEX query returns no relevant data or the user explicitly asks for wallet/DEX/on-chain balances. Do NOT use for CEX orders, CEX positions, or CEX trade history. Do NOT use for general programming questions about balance variables or API documentation. Do NOT use when the user is asking how to build or integrate a balance feature into code."
 license: Apache-2.0
 metadata:
   author: 6551
@@ -40,7 +40,7 @@ Every time before running any `opentrade` command, always follow these steps in 
    ```
 4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
   ```bash
-  OPEN_TOKEN=your_token_here
+  OPENNEWS_TOKEN=your_token_here
   ```
 
   Get your API token at: https://www.newsliquid.com/mcp
@@ -90,6 +90,7 @@ opentrade trade routers
 
 ## Skill Routing
 
+- For generic user-specific holdings/assets/positions, query `opentrade-cex` first. Use this skill only when CEX has no relevant records or the user explicitly asks for wallet/DEX/on-chain balances.
 - For token prices / K-lines → use `opentrade-market`
 - For token search / metadata → use `opentrade-token`
 - For swap execution → use `opentrade-dex-swap`
@@ -138,6 +139,15 @@ The CLI accepts human-readable chain names and resolves them automatically.
 ## Cross-Skill Workflows
 
 This skill is often used **before swap** (to verify sufficient balance) or **as portfolio entry point**.
+
+### Query Priority: CEX Before DEX/On-chain
+
+For user questions about their own holdings, assets, positions, orders, or trade history, first use `opentrade-cex`:
+
+1. `opentrade-cex` account/spot/positions/orders/trades endpoints.
+2. If CEX returns no relevant records, use this skill for on-chain wallet balances.
+
+Start directly with this skill only when the user explicitly says wallet/on-chain/DEX, provides a wallet address and chain, or asks for DeFi positions.
 
 ### Workflow A: Pre-Swap Balance Check
 
