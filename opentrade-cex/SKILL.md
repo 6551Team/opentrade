@@ -10,7 +10,7 @@ metadata:
 
 # OpenTrade CEX Trading
 
-37 API endpoints for centralized exchange trading — market data, public metadata, account management, spot & futures orders, positions, and leverage.
+39 API endpoints for centralized exchange trading — market data, public metadata, account management, spot & futures orders, positions, and leverage.
 
 > **IMPORTANT**: This is a **CEX (centralized exchange)** trading skill. All trades are executed server-side with built-in risk controls — no private key management or transaction signing required.
 >
@@ -139,55 +139,57 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | 16 | `/open/trader/newsliquid/v1/public/metadata/funding-interval` | GET | Get funding interval |
 | 17 | `/open/trader/newsliquid/v1/public/metadata/open-interest` | GET | Get current open interest |
 | 18 | `/open/trader/newsliquid/v1/public/metadata/open-interest/history` | GET | Get historical open interest |
+| 19 | `/open/trader/newsliquid/v1/public/market/index-constituents` | GET | Get contract index price constituents |
+| 20 | `/open/trader/newsliquid/v1/public/market/smart-money` | GET | Get smart money signal overview |
 
 ### Account (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 19 | `/open/trader/newsliquid/v1/account/summary` | GET | Account summary (balance, leverage, max position) |
-| 20 | `/open/trader/newsliquid/v1/account/spot` | GET | Query specific spot asset |
-| 21 | `/open/trader/newsliquid/v1/account/spots` | GET | Query all spot assets |
+| 21 | `/open/trader/newsliquid/v1/account/summary` | GET | Account summary (balance, leverage, max position) |
+| 22 | `/open/trader/newsliquid/v1/account/spot` | GET | Query specific spot asset |
+| 23 | `/open/trader/newsliquid/v1/account/spots` | GET | Query all spot assets |
 
 ### Config (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 22 | `/open/trader/newsliquid/v1/config` | GET | Get trading config |
-| 23 | `/open/trader/newsliquid/v1/config` | PUT | Update trading config |
+| 24 | `/open/trader/newsliquid/v1/config` | GET | Get trading config |
+| 25 | `/open/trader/newsliquid/v1/config` | PUT | Update trading config |
 
 ### Orders (risk control on create)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 24 | `/open/trader/newsliquid/v1/orders` | POST | Yes | Place order (limit/market/stop-loss/take-profit) |
-| 25 | `/open/trader/newsliquid/v1/orders/:orderId` | DELETE | No | Cancel order |
-| 26 | `/open/trader/newsliquid/v1/orders/open` | GET | No | List open orders |
-| 27 | `/open/trader/newsliquid/v1/orders/closed` | GET | No | List closed orders |
+| 26 | `/open/trader/newsliquid/v1/orders` | POST | Yes | Place order (limit/market/stop-loss/take-profit) |
+| 27 | `/open/trader/newsliquid/v1/orders/:orderId` | DELETE | No | Cancel order |
+| 28 | `/open/trader/newsliquid/v1/orders/open` | GET | No | List open orders |
+| 29 | `/open/trader/newsliquid/v1/orders/closed` | GET | No | List closed orders |
 
 ### Positions (risk control on close)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 28 | `/open/trader/newsliquid/v1/positions` | GET | No | List current positions |
-| 29 | `/open/trader/newsliquid/v1/positions/history` | GET | No | List historical positions |
-| 30 | `/open/trader/newsliquid/v1/positions/close` | POST | Yes | Close position (market price) |
+| 30 | `/open/trader/newsliquid/v1/positions` | GET | No | List current positions |
+| 31 | `/open/trader/newsliquid/v1/positions/history` | GET | No | List historical positions |
+| 32 | `/open/trader/newsliquid/v1/positions/close` | POST | Yes | Close position (market price) |
 
 ### Trades (no risk control)
 
 | # | Endpoint | Method | Description |
 |---|---|---|---|
-| 31 | `/open/trader/newsliquid/v1/trades/history` | GET | Get trade execution history |
+| 33 | `/open/trader/newsliquid/v1/trades/history` | GET | Get trade execution history |
 
 ### Leverage & Margin (risk control on leverage change)
 
 | # | Endpoint | Method | Risk | Description |
 |---|---|---|---|---|
-| 32 | `/open/trader/newsliquid/v1/leverage` | GET | No | Get available leverage tiers |
-| 33 | `/open/trader/newsliquid/v1/leverage/current` | GET | No | Get current leverage setting |
-| 34 | `/open/trader/newsliquid/v1/leverage/current` | PUT | Yes | Set leverage multiplier |
-| 35 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
-| 36 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
-| 37 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
+| 34 | `/open/trader/newsliquid/v1/leverage` | GET | No | Get available leverage tiers |
+| 35 | `/open/trader/newsliquid/v1/leverage/current` | GET | No | Get current leverage setting |
+| 36 | `/open/trader/newsliquid/v1/leverage/current` | PUT | Yes | Set leverage multiplier |
+| 37 | `/open/trader/newsliquid/v1/margin/mode` | GET | No | Get margin mode |
+| 38 | `/open/trader/newsliquid/v1/position/mode` | GET | No | Get position mode (one-way/hedge) |
+| 39 | `/open/trader/newsliquid/v1/position/mode` | PUT | No | Set position mode |
 
 ## API Reference
 
@@ -889,7 +891,81 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest/histo
 
 ---
 
-### 19. Get Account Summary
+### 19. Get Index Constituents
+
+获取永续合约指数价格的成分币种及其权重。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/index-constituents?symbol=BTCUSDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `symbol` | String (query) | Yes | Perpetual symbol in raw format (e.g., `BTCUSDT`, `ETHUSDT`). Case-insensitive, will be uppercased. |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BTCUSDT",
+    "time": 1697007049254,
+    "constituents": [
+      {"exchange": "binance", "symbol": "BTCUSDT", "weight": "0.3333"},
+      {"exchange": "okx",     "symbol": "BTC-USDT", "weight": "0.3333"},
+      {"exchange": "coinbase","symbol": "BTC-USD",  "weight": "0.3334"}
+    ]
+  },
+  "usage": {"cost": 1, "quota": 99}
+}
+```
+
+**Display to user:**
+- List the exchanges contributing to the index and their relative weights
+- Useful for understanding where the mark/index price is derived from
+
+---
+
+### 20. Get Smart Money Signal
+
+获取永续合约的"聪明钱"信号概览。聪明钱信号反映大资金账户在该合约上的多空倾向与持仓变化。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/smart-money?symbol=BTCUSDT" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `symbol` | String (query) | Yes | Perpetual symbol in raw format (e.g., `BTCUSDT`). Case-insensitive, will be uppercased. |
+
+**Response:** Upstream JSON structure is returned as-is. Typical fields include the symbol, long/short ratios of top traders, position deltas, and signal timestamp. Structure may evolve with upstream changes — read the raw response before building downstream logic.
+
+```json
+{
+  "success": true,
+  "data": {
+    "code": "000000",
+    "message": null,
+    "data": { "symbol": "BTCUSDT", "...": "upstream fields" },
+    "success": true
+  },
+  "usage": {"cost": 1, "quota": 99}
+}
+```
+
+**Display to user:**
+- Summarize the directional bias (long-heavy vs short-heavy) and any notable shifts
+- Pair with `GET /public/metadata/funding-rate` and `GET /public/metadata/open-interest` for a fuller picture
+
+---
+
+### 21. Get Account Summary
 
 获取指定交易所的账户余额摘要信息，包括总余额、可用余额、杠杆分析等。
 
@@ -955,7 +1031,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/summary?exchangeId=binance&
 
 ---
 
-### 20. Get Spot Asset
+### 22. Get Spot Asset
 
 查询指定交易所和交易对的现货资产持有信息。
 
@@ -995,7 +1071,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spot?exchangeId=binance&sym
 
 ---
 
-### 21. Get All Spot Assets
+### 23. Get All Spot Assets
 
 获取指定交易所的所有现货资产列表。
 
@@ -1046,7 +1122,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spots?exchangeId=binance" \
 
 ---
 
-### 22. Get Trading Config
+### 24. Get Trading Config
 
 获取用户的交易配置摘要（不包含密钥敏感信息）。
 
@@ -1082,7 +1158,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/config" \
 
 ---
 
-### 23. Update Trading Config
+### 25. Update Trading Config
 
 更新用户的交易配置，包括默认交易所、杠杆和交易所凭证。
 
@@ -1126,7 +1202,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/config" \
 
 ---
 
-### 24. Place Order (Risk Controlled)
+### 26. Place Order (Risk Controlled)
 
 在指定交易所下单。支持多种订单类型。
 
@@ -1254,7 +1330,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
 
 ---
 
-### 25. Cancel Order
+### 27. Cancel Order
 
 取消指定的挂单。
 
@@ -1285,7 +1361,7 @@ curl -s -X DELETE "$BASE_URL/open/trader/newsliquid/v1/orders/123456789?exchange
 
 ---
 
-### 26. List Open Orders
+### 28. List Open Orders
 
 获取当前所有未成交的挂单。
 
@@ -1333,7 +1409,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance&symb
 
 ---
 
-### 27. List Closed Orders
+### 29. List Closed Orders
 
 获取已完成（成交/取消）的历史订单。
 
@@ -1354,7 +1430,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/closed?exchangeId=binance&sy
 
 ---
 
-### 28. List Current Positions
+### 30. List Current Positions
 
 获取当前所有持仓信息。
 
@@ -1402,7 +1478,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
 
 ---
 
-### 29. List Historical Positions
+### 31. List Historical Positions
 
 获取已平仓的历史持仓记录（包含关联的交易明细）。
 
@@ -1490,7 +1566,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions/history?exchangeId=binanc
 
 ---
 
-### 30. Close Position (Risk Controlled)
+### 32. Close Position (Risk Controlled)
 
 关闭指定的持仓（全部或部分平仓）。
 
@@ -1539,7 +1615,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 
 ---
 
-### 31. Get Trade History
+### 33. Get Trade History
 
 获取历史成交记录。
 
@@ -1586,7 +1662,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/trades/history?exchangeId=binance&s
 
 ---
 
-### 32. Get Leverage Tiers
+### 34. Get Leverage Tiers
 
 获取指定交易对的杠杆档位（梯度）信息。
 
@@ -1643,7 +1719,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage?symbol=BTC/USDT:USDT&excha
 
 ---
 
-### 33. Get Current Leverage
+### 35. Get Current Leverage
 
 获取指定交易对当前设置的杠杆倍数和保证金模式。
 
@@ -1676,7 +1752,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage/current?symbol=BTC/USDT:US
 
 ---
 
-### 34. Set Leverage (Risk Controlled)
+### 36. Set Leverage (Risk Controlled)
 
 设置指定交易对的杠杆倍数。
 
@@ -1712,7 +1788,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 
 ---
 
-### 35. Get Margin Mode
+### 37. Get Margin Mode
 
 获取指定交易对的保证金模式（cross 全仓 / isolated 逐仓）。
 
@@ -1741,7 +1817,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/margin/mode?symbol=BTC/USDT:USDT&ex
 
 ---
 
-### 36. Get Position Mode
+### 38. Get Position Mode
 
 获取指定交易对的持仓模式（单向/双向）。
 
@@ -1775,7 +1851,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&
 
 ---
 
-### 37. Set Position Mode
+### 39. Set Position Mode
 
 设置指定交易对的持仓模式。
 
@@ -1947,6 +2023,8 @@ Only start directly with DEX/on-chain tools when the user explicitly says "on-ch
 | Compare funding rates across exchanges | `GET /public/metadata/funding-rate/exchanges` |
 | Check current open interest | `GET /public/metadata/open-interest` |
 | Check open interest history | `GET /public/metadata/open-interest/history` |
+| Get index price constituents | `GET /public/market/index-constituents` |
+| Get smart money signal | `GET /public/market/smart-money` |
 | Check account balance | `GET /account/summary` or `GET /account/spots` |
 | Place a buy/sell order | `POST /orders` |
 | Cancel an order | `DELETE /orders/:orderId` |
