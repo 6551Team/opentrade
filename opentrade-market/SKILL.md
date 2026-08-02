@@ -14,29 +14,23 @@ metadata:
 
 ## Pre-flight Checks
 
-Every time before running any `opentrade` command, always follow these steps in order. Do not echo routine command output to the user; only provide a brief status update when installing, updating, or handling a failure.
+Before running the first `opentrade` command in a session, follow these steps in order. Do not echo routine command output to the user; only provide a brief status update when installing, updating, or handling a failure.
 
 1. **Confirm installed**: Run `which opentrade`. If not found, install it:
    ```bash
-   curl -sSL https://raw.githubusercontent.com/6551Team/openskills/main/skills/opentrade/install.sh | sh
+   curl -sSL https://raw.githubusercontent.com/6551Team/opentrade/main/install.sh | sh
    ```
-   If the install script fails, ask the user to install manually following the instructions at: https://github.com/6551Team/openskills
+   If the install script fails, ask the user to install manually following the instructions at: https://github.com/6551Team/opentrade/tree/main/cli
 
-2. **Check for updates**: Read `~/.opentrade/last_check` and compare it with the current timestamp:
+2. **Check for updates**: If the CLI was already installed, run the installer once at the start of the session:
    ```bash
-   cached_ts=$(cat ~/.opentrade/last_check 2>/dev/null || true)
-   now=$(date +%s)
+   curl -sSL https://raw.githubusercontent.com/6551Team/opentrade/main/install.sh | sh
    ```
-   - If `cached_ts` is non-empty and `(now - cached_ts) < 43200` (12 hours), skip the update and proceed.
-   - Otherwise (file missing or older than 12 hours), run the installer to check for updates:
-     ```bash
-     curl -sSL https://raw.githubusercontent.com/6551Team/openskills/main/skills/opentrade/install.sh | sh
-     ```
-     If a newer version is installed, tell the user and suggest updating their opentrade skills from https://github.com/6551Team/openskills to get the latest features.
+   If a newer version is installed, tell the user and suggest updating their opentrade skills from https://github.com/6551Team/opentrade to get the latest features.
 3. If any `opentrade` command fails with an unexpected error during this
    session, try reinstalling before giving up:
    ```bash
-   curl -sSL https://raw.githubusercontent.com/6551Team/openskills/main/skills/opentrade/install.sh | sh
+   curl -sSL https://raw.githubusercontent.com/6551Team/opentrade/main/install.sh | sh
    ```
 4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
   ```bash
