@@ -64,17 +64,18 @@ Unified CEX trading engine — trade spot & perpetual futures across **5 major e
 | **Hyperliquid** | ✅ | ✅ | On-chain perpetual DEX, wallet agent |
 | **Aster** | ✅ | ✅ | On-chain DEX, wallet agent |
 
-### 29 API Endpoints
+### 40 API Endpoints
 
 | Category | Endpoints | Capabilities |
 |----------|:---------:|--------------|
 | **Market Data** | 5 | Real-time ticker, K-line/candlestick, unified metadata across exchanges, base currency discovery, server time |
+| **Public Metadata** | 16 | Order book, tickers, OHLCV, public trades, exchange status, funding rates, open interest, equity option gamma exposure, index constituents, smart money signals |
 | **Account** | 3 | Balance summary (spot/swap/future/margin), spot asset query with FIFO cost basis, batch asset listing |
 | **Config** | 2 | Read/update default exchange, leverage, position size, encrypted exchange credentials |
-| **Orders** | 5 | Place / edit / cancel orders, list open & closed. 7 order types: `market` `limit` `stop_market` `stop_limit` `take_profit_market` `take_profit_limit` `oco` |
+| **Orders** | 4 | Place / cancel orders, list open & closed. 7 order types: `market` `limit` `stop_market` `stop_limit` `take_profit_market` `take_profit_limit` `oco` |
 | **Positions** | 3 | Current positions, historical positions with trade details, close (full or partial) |
+| **Trades** | 1 | Historical trade execution records |
 | **Leverage & Margin** | 6 | Leverage tiers, get/set leverage, margin mode (cross/isolated), position mode (one-way/hedge) |
-| **Wallet Agent** | 4 | Create, list, query, authorize Ethereum-compatible agent wallets for Hyperliquid & Aster |
 
 ### Advanced Trading Features
 
