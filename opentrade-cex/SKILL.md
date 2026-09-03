@@ -1,16 +1,16 @@
 ---
 name: opentrade-cex
-description: "Use for centralized exchange trading and account queries: CEX spot/futures orders, open/closed orders, balances, spot assets, futures/perpetual positions, leverage, margin mode, position mode, funding rates, order book, tickers, K-lines, open interest, gamma exposure, account summary, and trade/position history. Trigger on buy/sell on CEX, long/short, open or close position, set leverage, cancel order, show open orders, show holdings, query positions, CEX balance, gamma exposure, option gamma, GEX, 查询持仓, 查询订单, 当前订单, 历史订单, 交易历史, 成交记录. For user-specific holdings, positions, orders, closed orders, or trade history, query CEX first; fall back to DEX/on-chain skills only if CEX has no relevant data or the user explicitly asks for wallet/DEX/on-chain data. Do not use for DEX swaps, token search, custodial wallet management, or transaction broadcasting."
+description: "Use for centralized exchange trading and account queries: CEX spot/futures orders, open/closed orders, balances, spot assets, futures/perpetual positions, leverage, margin mode, position mode, funding rates, order book, tickers, K-lines, open interest, gamma exposure, large liquidation aggregates, account summary, and trade/position history. Trigger on buy/sell on CEX, long/short, open or close position, set leverage, cancel order, show open orders, show holdings, query positions, CEX balance, gamma exposure, option gamma, GEX, liquidations, 查询持仓, 查询订单, 当前订单, 历史订单, 交易历史, 成交记录. For user-specific holdings, positions, orders, closed orders, or trade history, query CEX first; fall back to DEX/on-chain skills only if CEX has no relevant data or the user explicitly asks for wallet/DEX/on-chain data. Do not use for DEX swaps, token search, custodial wallet management, or transaction broadcasting."
 license: MIT
 metadata:
   author: 6551
-  version: "1.0.4"
+  version: "1.0.5"
   homepage: "https://www.newsliquid.com"
 ---
 
 # OpenTrade CEX Trading
 
-40 API endpoints for centralized exchange trading — market data, public metadata, account management, spot & futures orders, positions, and leverage.
+41 API endpoints for centralized exchange trading — market data, public metadata, account management, spot & futures orders, positions, and leverage.
 
 > **IMPORTANT**: This is a **CEX (centralized exchange)** trading skill. All trades are executed server-side with built-in risk controls — no private key management or transaction signing required.
 >
@@ -140,8 +140,9 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 | 17 | `/open/trader/newsliquid/v1/public/metadata/open-interest` | GET | Get current open interest |
 | 18 | `/open/trader/newsliquid/v1/public/metadata/open-interest/history` | GET | Get historical open interest |
 | 19 | `/open/trader/newsliquid/v1/public/metadata/gamma` | GET | Get equity option gamma exposure by symbol |
-| 20 | `/open/trader/newsliquid/v1/public/market/index-constituents` | GET | Get contract index price constituents |
-| 21 | `/open/trader/newsliquid/v1/public/market/smart-money` | GET | Get smart money signal overview |
+| 20 | `/open/trader/newsliquid/v1/public/metadata/liquidations` | GET | Get aggregated large liquidation data |
+| 21 | `/open/trader/newsliquid/v1/public/market/index-constituents` | GET | Get contract index price constituents |
+| 22 | `/open/trader/newsliquid/v1/public/market/smart-money` | GET | Get smart money signal overview |
 
 ### Account (no risk control)
 
@@ -2083,6 +2084,7 @@ Only start directly with DEX/on-chain tools when the user explicitly says "on-ch
 | Check current open interest | `GET /public/metadata/open-interest` |
 | Check open interest history | `GET /public/metadata/open-interest/history` |
 | Check equity option gamma exposure / GEX | `GET /public/metadata/gamma` |
+| Check large liquidation aggregates | `GET /public/metadata/liquidations` |
 | Get index price constituents | `GET /public/market/index-constituents` |
 | Get smart money signal | `GET /public/market/smart-money` |
 | Check account balance | `GET /account/summary` or `GET /account/spots` |
@@ -2197,6 +2199,62 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
   -d '{"symbol":"ETH/USDT:USDT","leverage":20,"exchangeId":"binance"}'
 # → Leverage updated! ETH/USDT:USDT: 20x
 ```
+
+### 41. Get Large Liquidation Aggregates
+
+按时间窗口聚合大额清算数据，返回按 `exchange + symbol + side` 分组的统计结果。这个接口只保留一个时间参数 `range`，默认 `1h`，更适合 agent 直接调用。
+
+```bash
+curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/liquidations?range=1h&exchange=binance&symbol=btc&side=short&minQuoteValue=100000" \
+  -H "$AUTH_HEADER"
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `range` | String (query) | No | Time window, default `1h`; examples: `15m`, `1h`, `4h`, `1d` |
+| `exchange` | String (query) | No | Exchange filter, e.g. `binance`, `bybit`, `okx`, `hyperliquid`, `aster` |
+| `symbol` | String (query) | No | Symbol filter; accepts `btc`, `btcusdt`, `ETH-USDT`, and normalizes to `BASE/QUOTE` |
+| `side` | String (query) | No | Liquidation side filter: `long` or `short` |
+| `minQuoteValue` | Float (query) | No | Minimum quote value threshold; default `100000` |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "exchange": "binance",
+        "symbol": "BTC/USDT",
+        "side": "short",
+        "count": 12,
+        "totalQuoteValue": 2450000.5,
+        "maxQuoteValue": 620000.0,
+        "avgPrice": 67321.48,
+        "firstEventTime": "2026-09-03T09:00:00+08:00",
+        "lastEventTime": "2026-09-03T09:58:00+08:00"
+      }
+    ],
+    "query": {
+      "range": "1h",
+      "exchange": "binance",
+      "symbol": "BTC/USDT",
+      "side": "short",
+      "minQuoteValue": 100000
+    }
+  },
+  "usage": {"cost": 1, "quota": 99}
+}
+```
+
+**Display to user:**
+- Summarize the largest buckets by `totalQuoteValue`
+- Include `exchange`, `symbol`, `side`, `count`, `maxQuoteValue`, and the active time window
+- If `exchange` or `symbol` is omitted, note that the result is broader and grouped by the returned buckets
+
+---
 
 ## Edge Cases
 
