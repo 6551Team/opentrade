@@ -918,11 +918,9 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/gamma?symbol=SNDK&c
   "success": true,
   "data": {
     "symbol": "SNDK",
-    "source": "unusual_whales",
     "provider_date": "2026-08-14",
     "requested_date": null,
     "requested_expiry": null,
-    "raw_endpoint": "/api/stock/SNDK/greek-exposure/strike",
     "row_count": 558,
     "total_call_gex": 24677.8465,
     "total_put_gex": -13936.3542,
