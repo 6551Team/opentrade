@@ -4,7 +4,7 @@ description: "Use for centralized exchange trading and account queries: CEX spot
 license: MIT
 metadata:
   author: 6551
-  version: "1.0.5"
+  version: "1.1.0"
   homepage: "https://www.newsliquid.com"
 ---
 
@@ -39,11 +39,85 @@ Every time before running any CEX command, always follow these steps in order:
 
   **Security warning**: Never commit .env to git (add it to .gitignore) and never expose credentials in logs, screenshots, or chat messages.
 
-2. Set the base URL and auth header:
+2. Set the base URL and auth headers. Protected skills also require a reusable 2FA authorization token in `X-2FA-Token` after the user completes 2FA:
   ```bash
   BASE_URL="https://ai.6551.io"
   AUTH_HEADER="Authorization: Bearer $OPENNEWS_TOKEN"
+  TWO_FACTOR_HEADER="X-2FA-Token: $TWO_FACTOR_TOKEN"
   ```
+
+  If `TWO_FACTOR_TOKEN` is unset, omit `$TWO_FACTOR_HEADER`. Do not put authenticator codes, website login tokens, or 2FA tokens in chat.
+
+## On-demand 2FA Authorization
+
+Protected CEX requests may return HTTP 403 JSON:
+
+```json
+{
+  "success": false,
+  "error_code": "TWO_FACTOR_REQUIRED",
+  "error": "2FA authorization required",
+  "two_factor": {
+    "method": "totp",
+    "digits": 6,
+    "authorization_path": "/open/2fa/authorization",
+    "expires_in": 3600,
+    "trusted_expires_in": 604800,
+    "reason": "missing_or_expired",
+    "request_executed": false
+  }
+}
+```
+
+Only this `error_code` with `request_executed: false` means the original request did not execute and 2FA is required. An arbitrary 403, IP rejection, permission error, timeout, or 5xx is not a 2FA challenge.
+
+When that challenge appears:
+
+1. Pause the original request. Ask the user to open the official authorization page and enter a 6-digit Newsliquid authenticator code. Default authorization is 1 hour; the user may choose to trust this environment for 7 days. Never choose trust for them.
+2. Start a browser authorization challenge with the same Open API Token. Keep `device_code` in a local variable; do not print it or send it to chat.
+  ```bash
+  DEVICE=$(curl -s -X POST "$BASE_URL/open/2fa/authorization/device" \
+    -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+    -d '{}')
+  VERIFICATION_URL=$(printf '%s' "$DEVICE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["verification_url"])')
+  USER_CODE=$(printf '%s' "$DEVICE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["user_code"])')
+  DEVICE_CODE=$(printf '%s' "$DEVICE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["device_code"])')
+  echo "$VERIFICATION_URL"
+  echo "$USER_CODE"
+  ```
+3. Show the user only the official `verification_url` and `user_code`. They open the page, confirm the displayed request code matches, enter the authenticator code, and approve or cancel. Do not ask them to retype the request code or paste a TOTP code into chat.
+4. After the user says they approved, poll at most once every 5 seconds until expiry. On success, keep `token` in the local shell as `TWO_FACTOR_TOKEN`, then set `TWO_FACTOR_HEADER`. Do not echo the token.
+  ```bash
+  POLL=$(curl -s -X POST "$BASE_URL/open/2fa/authorization/device/poll" \
+    -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+    -d "{\"device_code\":\"$DEVICE_CODE\"}")
+  TWO_FACTOR_TOKEN=$(printf '%s' "$POLL" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("token",""))')
+  TWO_FACTOR_HEADER="X-2FA-Token: $TWO_FACTOR_TOKEN"
+  ```
+5. Repeat the original CEX request exactly once with `-H "$TWO_FACTOR_HEADER"`. Do not change trade parameters. Do not retry writes after a timeout, 5xx, or unknown execution result; query order state first.
+
+Check current authorization without printing the token:
+
+```bash
+curl -s "$BASE_URL/open/2fa/authorization/status" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
+```
+
+Revoke the current authorization:
+
+```bash
+curl -s -X DELETE "$BASE_URL/open/2fa/authorization" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
+```
+
+Cancel a pending browser request:
+
+```bash
+curl -s -X DELETE "$BASE_URL/open/2fa/authorization/device/<id>" \
+  -H "$AUTH_HEADER"
+```
+
+A TOTP code used to bind the authenticator cannot be reused to authorize. Wait for the next code. Authorization is not consent to a trade; confirm exchange, symbol, side, amount, and order parameters before POST/PUT/DELETE.
 
 ## Skill Routing
 
@@ -74,33 +148,33 @@ Every time before running any CEX command, always follow these steps in order:
 ```bash
 # 1. Get real-time ticker
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 
 # 2. Check account balance
 curl -s "$BASE_URL/open/trader/newsliquid/v1/account/summary?exchangeId=binance&symbol=BTC/USDT:USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 
 # 3. Get position mode (if hedged value is unknown, MUST call before placing orders or closing positions)
 curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 # → Returns {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
 
 # 4. Place a limit buy order (use hedged value from step 3)
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"symbol":"BTC/USDT:USDT","side":"buy","type":"limit","quantity":0.001,"price":60000,"exchangeId":"binance","hedged":false}'
 
 # 5. Check open orders
 curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 
 # 6. Check current positions
 curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 
 # 7. Close a position (use hedged value from step 3, quantity is required)
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0.001,"exchangeId":"binance","hedged":false}'
 ```
 
@@ -238,7 +312,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/metadata?ticker=BTC" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -311,7 +385,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/metadata?ticker=BTC" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -352,7 +426,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&excha
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/klines?symbol=BTCUSDT&interval=1h&limit=100" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -394,7 +468,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/klines?symbol=BTCUSDT&interv
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/base-currencies" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:** None
@@ -416,7 +490,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/base-currencies" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/market/time" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:** None
@@ -438,7 +512,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/time" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/orderbook?exchangeId=binance&symbol=BTC/USDT&limit=20" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -471,7 +545,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/orderbook?exchangeI
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/tickers?exchangeId=binance&symbols=BTC/USDT,ETH/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -518,7 +592,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/tickers?exchangeId=
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/ohlcv?exchangeId=binance&symbol=BTC/USDT&timeframe=1h&limit=50" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -556,7 +630,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/ohlcv?exchangeId=bi
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/trades?exchangeId=binance&symbol=BTC/USDT&limit=20" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -596,7 +670,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/trades?exchangeId=b
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/time?exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -623,7 +697,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/time?exchangeId=bin
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/status?exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -651,7 +725,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/status?exchangeId=b
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate?exchangeId=binance&symbol=BTC/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -685,7 +759,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate?exchan
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rates?exchangeId=binance&symbols=BTC/USDT,ETH/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -721,7 +795,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rates?excha
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate/history?exchangeId=binance&symbol=BTC/USDT&limit=20" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -756,7 +830,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate/histor
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate/exchanges?exchangeIds=binance,bybit,okx&symbol=BTC/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -801,7 +875,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-rate/exchan
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-interval?exchangeId=binance&symbol=BTC/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -830,7 +904,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/funding-interval?ex
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest?exchangeId=binance&symbol=BTC/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -862,7 +936,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest?excha
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest/history?exchangeId=binance&symbol=BTC/USDT&timeframe=1h&limit=50" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -899,7 +973,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/open-interest/histo
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/gamma?symbol=SNDK&cache_ttl_seconds=300" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -955,7 +1029,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/gamma?symbol=SNDK&c
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/index-constituents?symbol=BTCUSDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -993,7 +1067,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/index-constituents?sy
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/smart-money?symbol=BTCUSDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1029,7 +1103,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/public/market/smart-money?symbol=BT
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/account/summary?exchangeId=binance&symbol=BTC/USDT:USDT&accountType=swap" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1095,7 +1169,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/summary?exchangeId=binance&
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spot?exchangeId=binance&symbol=BTC/USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1135,7 +1209,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spot?exchangeId=binance&sym
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spots?exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1186,7 +1260,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/account/spots?exchangeId=binance" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/config" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:** None
@@ -1224,7 +1298,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/config" \
 
 ```bash
 curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/config" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{
     "defaultExchange": "binance",
     "defaultLeverage": 10,
@@ -1273,13 +1347,13 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/config" \
 ```bash
 # Step 1: Get position mode to obtain the hedged parameter (if unknown)
 curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 # → Returns {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
 # Extract data.hedged value to use in the order request
 
 # Step 2: Limit order - buy 0.01 BTC at $65,000 with TP/SL (use hedged from step 1)
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{
     "exchangeId": "binance",
     "symbol": "BTC/USDT:USDT",
@@ -1293,9 +1367,9 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   }'
 
 # Market order: sell 0.5 ETH (get hedged first)
-curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=ETH/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=ETH/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{
     "exchangeId": "binance",
     "symbol": "ETH/USDT:USDT",
@@ -1306,9 +1380,9 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
   }'
 
 # Stop-loss market order (get hedged first)
-curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{
     "exchangeId": "binance",
     "symbol": "BTC/USDT:USDT",
@@ -1394,7 +1468,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
 
 ```bash
 curl -s -X DELETE "$BASE_URL/open/trader/newsliquid/v1/orders/123456789?exchangeId=binance&symbol=BTC/USDT:USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1425,7 +1499,7 @@ curl -s -X DELETE "$BASE_URL/open/trader/newsliquid/v1/orders/123456789?exchange
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance&symbol=BTC/USDT:USDT" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1473,7 +1547,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/open?exchangeId=binance&symb
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/closed?exchangeId=binance&symbol=BTC/USDT:USDT&days=7" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1494,7 +1568,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/orders/closed?exchangeId=binance&sy
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1542,7 +1616,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions?exchangeId=binance" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/positions/history?exchangeId=binance&days=7" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1637,14 +1711,14 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/positions/history?exchangeId=binanc
 ```bash
 # Step 1: Get position mode to obtain the hedged parameter (if unknown)
 curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 # → Returns {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
 # Extract data.hedged value to use in the close request
 
 # Step 2: Close position using hedged value from step 1
 # Use the actual position size from GET /positions when closing the full position
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{
     "exchangeId": "binance",
     "symbol": "BTC/USDT:USDT",
@@ -1679,7 +1753,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/trades/history?exchangeId=binance&symbol=BTC/USDT:USDT&days=7" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1726,7 +1800,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/trades/history?exchangeId=binance&s
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1783,7 +1857,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage?symbol=BTC/USDT:USDT&excha
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage/current?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1818,7 +1892,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/leverage/current?symbol=BTC/USDT:US
 
 ```bash
 curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"exchangeId":"binance","symbol":"BTC/USDT:USDT","leverage":20}'
 ```
 
@@ -1852,7 +1926,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/margin/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1881,7 +1955,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/margin/mode?symbol=BTC/USDT:USDT&ex
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
@@ -1915,7 +1989,7 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&
 
 ```bash
 curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/position/mode" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"exchangeId":"binance","symbol":"BTC/USDT:USDT","hedged":true}'
 ```
 
@@ -2156,7 +2230,7 @@ All risk-controlled endpoints (marked with "Risk: Yes" in Command Index) pass th
 **User says:** "What's the BTC price on Binance?"
 
 ```bash
-curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&exchangeId=binance" -H "$AUTH_HEADER"
+curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&exchangeId=binance" -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 # → BTC/USDT: $67,890.50 (Bid: $67,889 | Ask: $67,891)
 ```
 
@@ -2164,12 +2238,12 @@ curl -s "$BASE_URL/open/trader/newsliquid/v1/market/ticker?symbol=BTC/USDT&excha
 
 ```bash
 # Step 1: Get position mode (if hedged value is unknown)
-curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 # → {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
 
 # Step 2: Place order with hedged value from step 1
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"symbol":"BTC/USDT:USDT","side":"buy","type":"limit","quantity":0.01,"price":65000,"exchangeId":"binance","hedged":false}'
 # → Order placed! Buy 0.01 BTC @ $65,000 (Limit) — ID: 123456789
 ```
@@ -2178,13 +2252,13 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/orders" \
 
 ```bash
 # Step 1: Get position mode (if hedged value is unknown)
-curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER"
+curl -s "$BASE_URL/open/trader/newsliquid/v1/position/mode?symbol=BTC/USDT:USDT&exchangeId=binance" -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 # → {"data": {"hedged": false, "info": {"dualSidePosition": false}}, "success": true}
 
 # Step 2: Close position with hedged value from step 1
 # Use the actual position size from GET /positions when closing the full position
 curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"symbol":"BTC/USDT:USDT","side":"long","quantity":0.01,"exchangeId":"binance","hedged":false}'
 # → Position closed! Realized P&L: +$25.00
 ```
@@ -2193,7 +2267,7 @@ curl -s -X POST "$BASE_URL/open/trader/newsliquid/v1/positions/close" \
 
 ```bash
 curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
-  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER" -H "Content-Type: application/json" \
   -d '{"symbol":"ETH/USDT:USDT","leverage":20,"exchangeId":"binance"}'
 # → Leverage updated! ETH/USDT:USDT: 20x
 ```
@@ -2204,7 +2278,7 @@ curl -s -X PUT "$BASE_URL/open/trader/newsliquid/v1/leverage/current" \
 
 ```bash
 curl -s "$BASE_URL/open/trader/newsliquid/v1/public/metadata/liquidations?range=1h&exchange=binance&symbol=btc&side=short&minQuoteValue=100000" \
-  -H "$AUTH_HEADER"
+  -H "$AUTH_HEADER" -H "$TWO_FACTOR_HEADER"
 ```
 
 **Parameters:**
