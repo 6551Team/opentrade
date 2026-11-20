@@ -36,3 +36,7 @@ node_modules/
 # Build outputs
 dist/
 build/
+
+# Python caches of the skill scripts and tests
+__pycache__/
+*.pyc
