@@ -11,7 +11,7 @@ OpenTrade provides **7 specialized skills** covering the full spectrum of blockc
 | # | Skill | Description |
 |---|-------|-------------|
 | 1 | [opentrade-cex](#-opentrade-cex) | CEX spot & futures trading across 5 exchanges, with built-in risk controls |
-| 2 | [opentrade-dex-swap](#-opentrade-dex-swap) | DEX swap operations (quote, swap, approve, liquidity) |
+| 2 | [opentrade-dex-swap](#-opentrade-dex-swap) | On-chain launchpad & DEX trades on BSC / Robinhood Chain with your own wallet (quote, build, sign, submit, track) |
 | 3 | [opentrade-market](#-opentrade-market) | Market data (prices, K-line, trades, smart money signals) |
 | 4 | [opentrade-token](#-opentrade-token) | Token information (search, info, holders, trending) |
 | 5 | [opentrade-portfolio](#-opentrade-portfolio) | Wallet / Portfolio (balances, portfolio value, transaction history) |
@@ -127,15 +127,17 @@ Request → [Rate Limit] → [Price Deviation] → [Position Limit] → [Balance
 
 ## 🔄 opentrade-dex-swap
 
-Execute DEX swaps across multiple chains.
+Buy and sell launchpad and DEX tokens on **BNB Chain (BSC)** and **Robinhood Chain** through NewsLiquid's trade service — four.meme, Flap, Gang, Genius and other bonding curves as well as graduated PancakeSwap / Uniswap pools — with **your own wallet**. The skill never holds a key: it prices the order, prints the unsigned transactions, your signer signs them, and the skill forwards and tracks them.
 
 | Feature | Description |
 |---------|-------------|
-| Swap Quotes | Get real-time quotes from multiple DEX sources |
-| Swap Execution | Generate ready-to-sign swap transactions |
-| Token Approval | Approve ERC-20 token spending |
-| Chain & Source Discovery | Query supported chains and liquidity sources |
-| History | View swap history |
+| Quotes | Curve or pool price, expected and minimum output, slippage, price impact, route, whether the token is tradable |
+| Build | The service builds and simulates the order for your wallet and the skill prints a plan: legacy (type 0) transactions as JSON-RPC objects, in signing order with nonces |
+| Sign | With whatever you already use — a Foundry keystore or Ledger / Trezor via `cast mktx`, ethers / viem / eth-account, a KMS |
+| Submit | Signed transactions are checked against the plan, then sent as block-builder bundles (BlockRazor, 48 Club) with a tip, or broadcast |
+| Receipts | Wait for the receipts of up to four transactions |
+
+Runs on `python3` (standard library); registering the skill's own service credential needs `pip install cryptography` unless `NL_TRADE_TOKEN` is set. Exact-amount approvals only; never an unlimited allowance.
 
 ---
 

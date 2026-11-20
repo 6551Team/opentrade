@@ -1,475 +1,147 @@
 ---
 name: opentrade-dex-swap
-description: "This skill should be used when the user asks to 'swap tokens', 'trade OKB for USDC', 'buy tokens', 'sell tokens', 'exchange crypto', 'convert tokens', 'swap SOL for USDC', 'get a swap quote', 'execute a trade', 'find the best swap route', 'cheapest way to swap', 'optimal swap', 'compare swap rates', or mentions swapping, trading, buying, selling, or exchanging tokens on XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, or any of 20+ supported chains. Aggregates liquidity from 500+ DEX sources for optimal routing and price. Supports slippage control, price impact protection, and cross-DEX route optimization. For user-specific holdings, orders, positions, or trade history, use opentrade-cex first and only fall back to DEX/on-chain skills if CEX returns no relevant data. Do NOT use for general programming questions about swap code, or for analytical questions about historical swap volume."
+description: "This skill should be used when the user asks to quote, buy or sell a launchpad or DEX token on BNB Chain (BSC) or Robinhood Chain with their own wallet: 'how much would 0.1 BNB buy', 'buy this token', 'sell half my position', 'buy with USDC', 'is this token tradable', 'build the swap transaction', 'submit my signed transaction', 'check the receipt', or mentions four.meme, Flap, Gang, Genius, bonding curves, graduated PancakeSwap / Uniswap pools, meme coins on BSC (报价、买入、卖出、链上成交、构建交易、签名、提交交易、查回执、meme 币、四格、Flap、Gang、曲线、毕业). It prices through NewsLiquid's trade service, prints the unsigned transactions for the user's own signer, forwards what the user signed and tracks the receipts; it never holds or asks for a private key. For centralized exchanges use opentrade-cex; for custodial wallets opentrade-wallet; for other chains or a transaction built elsewhere, opentrade-gateway. Do NOT use for general programming questions about swap code."
 license: Apache-2.0
 metadata:
   author: 6551
-  version: "1.0.2"
+  version: "2.0.0"
   homepage: "https://www.newsliquid.com"
 ---
 
-# OpenTrade DEX Aggregator CLI
+# OpenTrade DEX Swap — on-chain trades on BSC and Robinhood Chain
 
-5 commands for multi-chain swap aggregation — quote, approve, and execute.
+Price and execute on-chain orders against NewsLiquid's trade service: it tracks every launchpad token on BSC and
+Robinhood Chain block by block, picks the route (the platform's curve, its MemeRouter, or a graduated pool), builds and
+simulates the transactions on its own node, and relays signed transactions to block builders or the chain.
 
-## Pre-flight Checks
+The division of labour never changes:
 
-Before running the first `opentrade` command in a session, follow these steps in order. Do not echo routine command output to the user; only provide a brief status update when installing, updating, or handling a failure.
+- **This skill** prices the order (`quote`), has the service build and simulate it for the user's wallet and prints the
+  unsigned transactions as a plan (`build`), forwards what the user signed after checking it against that plan
+  (`submit`), and waits for receipts (`watch`).
+- **The user's own signer** — a Foundry keystore or hardware wallet through `cast`, a script around ethers / viem /
+  eth-account, a KMS, whatever the user already runs — signs the plan's transactions and hands back raw signed hex.
+  The key stays there. Never ask for, accept, store or echo a private key, seed phrase or keystore password; if one
+  appears in the conversation, say it must be treated as compromised and go on without it.
 
-1. **Confirm installed**: Run `which opentrade`. If not found, install it:
+Read [references/trade-service-api.md](references/trade-service-api.md) for the request and response fields and the
+plan format before interpreting anything the script prints.
+
+## Pre-flight
+
+All commands are `python3 scripts/dex_trade.py <command> …`, run from this skill's directory (Python 3.9+, standard
+library). Output is one JSON document on stdout. Exit code 2 means the service refused the request and the JSON is its
+answer (`error`, `status`, often the full `quote`); exit code 1 is a local or network problem reported on stderr.
+
+1. Credentials. The script sends `Authorization: Bearer <token>` from `NL_TRADE_TOKEN` (a static service token or a
+   principal token). Without it, it registers its own principal with the service (a P-256 challenge signature; one-hour
+   tokens cached under `~/.config/opentrade-dex-swap`, or `NL_TRADE_HOME`), which needs the `cryptography` package:
+   `pip install --user cryptography`. Run `python3 scripts/dex_trade.py auth` once per session; it prints the credential
+   kind and expiry, never the token. Never print, log or quote a token in the conversation.
+2. Base URL: `NL_TRADE_BASE` overrides `https://trade-service.newsliquid.com/v2` when a deployment says so.
+3. The signer. Before the first `build`, ask which signer the user wants to sign with and the wallet address it
+   controls, unless both are already known. No RPC node, wallet library or key is needed by the skill itself.
+
+## Skill routing
+
+- BSC or Robinhood token quoted or traded on-chain, by address, with the user's own wallet → this skill.
+- Exchange orders, positions, leverage → `opentrade-cex`.
+- Custodial wallet balances or custodial swaps (6551 signs server-side) → `opentrade-wallet`, `opentrade-portfolio`.
+- Token search, market data → `opentrade-token`, `opentrade-market`.
+- A signed transaction for another chain, or built elsewhere → `opentrade-gateway`.
+
+## Workflow
+
+1. Identify the token: a 0x address on `bsc` (default) or `robinhood`. Resolve a name through
+   `tokens --platform … --limit 50` (recently traded, by platform or status) or `opentrade-token`, or ask the user; never
+   guess an address. `token <address>` gives symbol, decimals, platform (four.meme, flap, gang, genius, pools …),
+   status (`curve` = still on the bonding curve, `graduated` = on a DEX pool) and the logo.
+2. Quote before anything else:
    ```bash
-   curl -sSL https://raw.githubusercontent.com/6551Team/opentrade/main/install.sh | sh
+   python3 scripts/dex_trade.py quote --token 0x… --side buy --amount 0.1
+   python3 scripts/dex_trade.py quote --token 0x… --side sell --percent 50 --account 0x… --slippage 2
+   python3 scripts/dex_trade.py quote --token 0x… --side buy --amount 20 --pay USDC
    ```
-   If the install script fails, ask the user to install manually following the instructions at: https://github.com/6551Team/opentrade/tree/main/cli
-
-2. **Check for updates**: If the CLI was already installed, run the installer once at the start of the session:
+   `--amount` is in human units: the native coin (BNB / ETH) or the `--pay` stablecoin for buys, tokens for sells
+   (decimals come from the service). `--percent` sells or spends a share of the wallet's balance as the service reads it
+   (needs `--account`). Report `summary.expectedOut`, `minOut`, `slippageBps`, `priceImpactPercent`, `provider`/`route`,
+   `platform`, `status` and any `blocked` or `error` in plain words.
+3. Confirm the order in chat — token, side, amount, slippage, the wallet address, expected and minimum output — and only
+   then build it:
    ```bash
-   curl -sSL https://raw.githubusercontent.com/6551Team/opentrade/main/install.sh | sh
+   python3 scripts/dex_trade.py build --token 0x… --side buy --amount 0.1 --account 0x… --out order.json
+   python3 scripts/dex_trade.py build --token 0x… --side sell --percent 50 --account 0x… --slippage 2 --out order.json
+   python3 scripts/dex_trade.py build --token 0x… --side buy --amount 20 --pay USDC --account 0x… --out order.json
+   python3 scripts/dex_trade.py build --token 0x… --side sell --amount 1200 --account 0x… --broadcast --out order.json
    ```
-   If a newer version is installed, tell the user and suggest updating their opentrade skills from https://github.com/6551Team/opentrade to get the latest features.
-3. If any `opentrade` command fails with an unexpected error during this
-   session, try reinstalling before giving up:
+   The service builds and simulates the order for that wallet; a 409 (no route, simulation reverted) ends here with
+   nothing to sign. On success the output has `summary` (price, simulation, gas) and `plan`: `plan.transactions` are
+   the unsigned legacy (type 0) transactions as JSON-RPC objects, in signing order with their nonces — on BSC one tip
+   transfer per block builder first (same nonce; only the builder that lands the bundle is paid), then the trade
+   (`approve` when an allowance is short, then `buy` / `sell`). In a quiet market the service suggests no tip and the
+   bundles carry the trade alone. `--tip-wei` and `--gas-price-wei` override the service's market figures (a tip
+   below the builders' minimum is raised to it); `--broadcast` plans a plain broadcast instead of bundles. Tell the
+   user what will be signed: each transaction's kind, `to`, `value` and gas, the tip, and that approve is for exactly
+   the amount sold.
+4. Have the user's signer sign `plan.transactions[*].tx`, in order, exactly as given — same `chainId`, `nonce`,
+   `gasPrice`, `gas`, `to`, `value`, `data`, as a legacy transaction, with the wallet in `from` — and collect one raw
+   signed hex string per transaction. With Foundry, from the plan's values (a keystore, `--ledger` or `--trezor`; never
+   paste a key into a command the conversation records):
    ```bash
-   curl -sSL https://raw.githubusercontent.com/6551Team/opentrade/main/install.sh | sh
+   cast mktx --legacy --chain 56 --nonce 17 --gas-price 120000000 --gas-limit 21000 --value 3000000000000000 \
+     --account <keystore-name> 0x<tipTo>            # a tip: empty calldata
+   cast mktx --legacy --chain 56 --nonce 18 --gas-price 120000000 --gas-limit 60000 --value 0 \
+     --account <keystore-name> 0x<token> 0x095ea7b3…   # a trade step: the plan's data as raw calldata
    ```
-4. Find or create a .env file in the project root to override the default API credentials, Load it before performing opentrade operations.
-  ```bash
-  OPENNEWS_TOKEN=your_token_here
-  ```
-
-  Get your API token at: https://www.newsliquid.com/mcp
-
-  **Security warning**: Never commit .env to git (add it to .gitignore) and never expose credentials in logs, screenshots, or chat messages.
-
-## Router Discovery
-
-**IMPORTANT**: If the user has not specified a trading router, you MUST first discover available routers:
-
-```bash
-opentrade trade routers
-```
-
-**Response format:**
-```json
-{
-  "ok": true,
-  "data": [
-    {
-      "api": "v2",
-      "created_at": "2026-03-10 01:15:42",
-      "is_active": true,
-      "name": "6551dex test",
-      "quota_reward": 0,
-      "trader": "6551dex",
-      "updated_at": "2026-03-10 01:15:42"
-    },
-    {
-      "api": "v1",
-      "created_at": "2026-03-03 21:24:34",
-      "is_active": true,
-      "name": "okx test",
-      "quota_reward": 0,
-      "trader": "okx",
-      "updated_at": "2026-03-03 21:24:34"
-    }
-  ]
-}
-```
-
-**Usage:**
-- Extract `trader` and `api` from the response
-- **MANDATORY**: ALL subsequent `opentrade` commands in this session MUST include `--trader <trader>` and `--api <api>` flags
-- Example: `opentrade swap quote --from 0x... --to 0x... --amount 100 --chain ethereum --trader okx --api v1`
-- **Default fallback**: If the API returns no data or is empty, use `--trader okx --api v1`
-
-## Skill Routing
-
-- For user-specific holdings, positions, orders, or trade history → use `opentrade-cex` first; this DEX swap skill is only for quote/approve/swap execution.
-- For token search → use `opentrade-token`
-- For market prices → use `opentrade-market`
-- For transaction broadcasting → use `opentrade-gateway`
-- For wallet balances / portfolio → use `opentrade-portfolio`
-
-## Quickstart
-
-### EVM Swap (quote → approve → swap)
-
-```bash
-# 1. Quote — sell 100 USDC for OKB on XLayer
-opentrade swap quote \
-  --from 0x74b7f16337b8972027f6196a17a631ac6de26d22 \
-  --to 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee \
-  --amount 100000000 \
-  --chain xlayer
-# → Expected: X.XX OKB, gas fee, price impact
-
-# 2. Approve — ERC-20 tokens need approval before swap (skip for native OKB)
-opentrade swap approve \
-  --token 0x74b7f16337b8972027f6196a17a631ac6de26d22 \
-  --amount 100000000 \
-  --chain xlayer
-# → Returns approval calldata: sign and broadcast via opentrade-gateway
-
-# 3. Swap
-opentrade swap swap \
-  --from 0x74b7f16337b8972027f6196a17a631ac6de26d22 \
-  --to 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee \
-  --amount 100000000 \
-  --chain xlayer \
-  --wallet 0xYourWallet \
-  --slippage 1
-# → Returns tx data: sign and broadcast via opentrade-gateway
-```
-
-### Solana Swap
-
-```bash
-opentrade swap swap \
-  --from 11111111111111111111111111111111 \
-  --to DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263 \
-  --amount 1000000000 \
-  --chain solana \
-  --wallet YourSolanaWallet \
-  --slippage 1
-# → Returns tx data: sign and broadcast via opentrade-gateway
-```
-
-## Chain Name Support
-
-The CLI accepts human-readable chain names and resolves them automatically.
-
-| Chain | Name | chainIndex |
-|---|---|---|
-| XLayer | `xlayer` | `196` |
-| Solana | `solana` | `501` |
-| Ethereum | `ethereum` | `1` |
-| Base | `base` | `8453` |
-| BSC | `bsc` | `56` |
-| Arbitrum | `arbitrum` | `42161` |
-
-## Native Token Addresses
-
-> **CRITICAL**: Each chain has a specific native token address. Using the wrong address will cause swap transactions to fail.
-
-| Chain | Native Token Address |
-|---|---|
-| EVM (Ethereum, BSC, Polygon, Arbitrum, Base, etc.) | `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` |
-| Solana | `11111111111111111111111111111111` |
-| Sui | `0x2::sui::SUI` |
-| Tron | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` |
-| Ton | `EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c` |
-
-> **WARNING — Solana native SOL**: The correct address is `11111111111111111111111111111111` (Solana system program). Do **NOT** use `So11111111111111111111111111111111111111112` (wSOL SPL token) — it is a different token and will cause swap failures.
-
-## Command Index
-
-| # | Command | Description |
-|---|---|---|
-| 1 | `opentrade swap chains` | Get supported chains for DEX aggregator |
-| 2 | `opentrade swap liquidity --chain <chain>` | Get available liquidity sources on a chain |
-| 3 | `opentrade swap approve --token ... --amount ... --chain ...` | Get ERC-20 approval transaction data |
-| 4 | `opentrade swap quote --from ... --to ... --amount ... --chain ...` | Get swap quote (read-only price estimate) |
-| 5 | `opentrade swap swap --from ... --to ... --amount ... --chain ... --wallet ...` | Get swap transaction data |
-
-## Cross-Skill Workflows
-
-This skill is the **execution endpoint** of most user trading flows. It almost always needs input from other skills first.
-
-### Workflow A: Full Swap by Token Name (most common)
-
-> User: "Swap 1 SOL for BONK on Solana"
-
-```
-1. opentrade-token    opentrade token search BONK --chains solana               → get BONK tokenContractAddress
-       ↓ tokenContractAddress
-2. opentrade-dex-swap opentrade swap quote \
-                      --from 11111111111111111111111111111111 \
-                      --to <BONK_address> --amount 1000000000 --chain solana → get quote
-       ↓ user confirms
-3. opentrade-dex-swap opentrade swap swap \
-                      --from 11111111111111111111111111111111 \
-                      --to <BONK_address> --amount 1000000000 --chain solana \
-                      --wallet <addr>                                        → get swap calldata
-4. User signs the transaction
-5. opentrade-gateway  opentrade gateway broadcast --signed-tx <tx> --address <addr> --chain solana
-```
-
-**Data handoff**:
-- `tokenContractAddress` from step 1 → `--to` in steps 2-3
-- SOL native address = `11111111111111111111111111111111` → `--from`. Do NOT use wSOL address.
-- Amount `1 SOL` = `1000000000` (9 decimals) → `--amount` param
-
-### Workflow B: EVM Swap with Approval
-
-> User: "Swap 100 USDC for OKB on XLayer"
-
-```
-1. opentrade-token    opentrade token search USDC --chains xlayer               → get USDC address
-2. opentrade-dex-swap opentrade swap quote --from <USDC> --to 0xeeee...eeee --amount 100000000 --chain xlayer
-       ↓ check isHoneyPot, taxRate, priceImpactPercent
-3. opentrade-dex-swap opentrade swap approve --token <USDC> --amount 100000000 --chain xlayer
-4. User signs the approval transaction
-5. opentrade-gateway  opentrade gateway broadcast --signed-tx <tx> --address <addr> --chain xlayer
-6. opentrade-dex-swap opentrade swap swap --from <USDC> --to 0xeeee...eeee --amount 100000000 --chain xlayer --wallet <addr>
-7. User signs the swap transaction
-8. opentrade-gateway  opentrade gateway broadcast --signed-tx <tx> --address <addr> --chain xlayer
-```
-
-**Key**: EVM tokens (not native OKB) require an **approve** step. Skip it if user is selling native tokens.
-
-### Workflow C: Compare Quote Then Execute
-
-```
-1. opentrade swap quote --from ... --to ... --amount ... --chain ...  → get quote with route info
-2. Display to user: expected output, gas, price impact, route
-3. If price impact > 5% → warn user
-4. If isHoneyPot = true → block trade, warn user
-5. User confirms → proceed to approve (if EVM) → swap
-```
-
-## Swap Flow
-
-### EVM Chains (XLayer, Ethereum, BSC, Base, etc.)
-
-```
-1. opentrade swap quote ...              → Get price and route
-2. opentrade swap approve ...            → Get approval calldata (if needed)
-3. User signs the approval transaction
-4. opentrade gateway broadcast ...       → Broadcast approval tx
-5. opentrade swap swap ...               → Get swap calldata
-6. User signs the swap transaction
-7. opentrade gateway broadcast ...       → Broadcast swap tx
-```
-
-### Solana
-
-```
-1. opentrade swap quote ...              → Get price and route
-2. opentrade swap swap ...               → Get swap calldata
-3. User signs the transaction
-4. opentrade gateway broadcast ...       → Broadcast tx
-```
-
-## Operation Flow
-
-### Step 1: Identify Intent
-
-- View a quote → `opentrade swap quote`
-- Execute a swap → full swap flow (quote → approve → swap)
-- List available DEXes → `opentrade swap liquidity`
-- Approve a token → `opentrade swap approve`
-
-### Step 2: Collect Parameters
-
-- Missing chain → recommend XLayer (`--chain xlayer`, low gas, fast confirmation) as the default, then ask which chain the user prefers
-- Missing token addresses → use `opentrade-token` `opentrade token search` to resolve name → address
-- Missing amount → ask user, remind to convert to minimal units
-- Missing slippage → suggest 1% default, 3-5% for volatile tokens
-- Missing wallet address → ask user
-
-### Step 3: Execute
-
-- **Quote phase**: call `opentrade swap quote`, display estimated results
-  - Expected output, gas estimate, price impact, routing path
-  - Check `isHoneyPot` and `taxRate` — surface safety info to users
-- **Confirmation phase**: wait for user approval before proceeding
-- **Approval phase** (EVM only): check/execute approve if selling non-native token
-- **Execution phase**: call `opentrade swap swap`, return tx data for signing
-
-### Step 4: Suggest Next Steps
-
-After displaying results, suggest 2-3 relevant follow-up actions:
-
-| Just completed | Suggest |
-|---|---|
-| `swap quote` (not yet confirmed) | 1. View price chart before deciding → `opentrade-market` 2. Proceed with swap → continue approve + swap (this skill) |
-| Swap executed successfully | 1. Check price of the token just received → `opentrade-market` 2. Swap another token → new swap flow (this skill) |
-| `swap liquidity` | 1. Get a swap quote → `opentrade swap quote` (this skill) |
-
-Present conversationally, e.g.: "Swap complete! Would you like to check your updated balance?" — never expose skill names or endpoint paths to the user.
-
-## CLI Command Reference
-
-### 1. opentrade swap chains
-
-Get supported chains for DEX aggregator. No parameters required.
-
-```bash
-opentrade swap chains
-```
-
-**Return fields**:
-
-| Field | Type | Description |
-|---|---|---|
-| `chainIndex` | String | Chain identifier (e.g., `"1"`, `"501"`) |
-| `chainName` | String | Human-readable chain name |
-| `dexTokenApproveAddress` | String | DEX router address for token approvals on this chain |
-
-### 2. opentrade swap liquidity
-
-Get available liquidity sources on a chain.
-
-```bash
-opentrade swap liquidity --chain <chain>
-```
-
-| Param | Required | Default | Description |
-|---|---|---|---|
-| `--chain` | Yes | - | Chain name (e.g., `ethereum`, `solana`, `xlayer`) |
-
-**Return fields**:
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | String | Liquidity source ID |
-| `name` | String | Liquidity source name (e.g., `"Uniswap V3"`, `"CurveNG"`) |
-| `logo` | String | Liquidity source logo URL |
-
-### 3. opentrade swap approve
-
-Get ERC-20 approval transaction data.
-
-```bash
-opentrade swap approve --token <address> --amount <amount> --chain <chain>
-```
-
-| Param | Required | Default | Description |
-|---|---|---|---|
-| `--token` | Yes | - | Token contract address to approve |
-| `--amount` | Yes | - | Amount in minimal units |
-| `--chain` | Yes | - | Chain name |
-
-**Return fields**:
-
-| Field | Type | Description |
-|---|---|---|
-| `data` | String | Approval calldata (hex) — use as tx `data` field |
-| `dexContractAddress` | String | Spender address (already encoded in `data`). **NOT** the tx `to` — send tx to the token contract |
-| `gasLimit` | String | Estimated gas limit for the approval tx |
-| `gasPrice` | String | Recommended gas price |
-
-### 4. opentrade swap quote
-
-Get swap quote (read-only price estimate).
-
-```bash
-opentrade swap quote --from <address> --to <address> --amount <amount> --chain <chain> [--swap-mode <mode>]
-```
-
-| Param | Required | Default | Description |
-|---|---|---|---|
-| `--from` | Yes | - | Source token contract address |
-| `--to` | Yes | - | Destination token contract address |
-| `--amount` | Yes | - | Amount in minimal units (sell amount if exactIn, buy amount if exactOut) |
-| `--chain` | Yes | - | Chain name |
-| `--swap-mode` | No | `exactIn` | `exactIn` or `exactOut` |
-
-**Return fields**:
-
-| Field | Type | Description |
-|---|---|---|
-| `toTokenAmount` | String | Expected output amount in minimal units |
-| `fromTokenAmount` | String | Input amount in minimal units |
-| `estimateGasFee` | String | Estimated gas fee (native token units) |
-| `tradeFee` | String | Trade fee estimate in USD |
-| `priceImpactPercent` | String | Price impact as percentage (e.g., `"0.05"`) |
-| `router` | String | Router type used |
-| `dexRouterList[]` | Array | DEX routing path details |
-| `dexRouterList[].dexName` | String | DEX name in the route |
-| `dexRouterList[].percentage` | String | Percentage of amount routed through this DEX |
-| `fromToken.isHoneyPot` | Boolean | `true` = source token is a honeypot (cannot sell) |
-| `fromToken.taxRate` | String | Source token buy/sell tax rate |
-| `fromToken.decimal` | String | Source token decimals |
-| `fromToken.tokenUnitPrice` | String | Source token unit price in USD |
-| `toToken.isHoneyPot` | Boolean | `true` = destination token is a honeypot (cannot sell) |
-| `toToken.taxRate` | String | Destination token buy/sell tax rate |
-| `toToken.decimal` | String | Destination token decimals |
-| `toToken.tokenUnitPrice` | String | Destination token unit price in USD |
-
-### 5. opentrade swap swap
-
-Get swap transaction data (quote → sign → broadcast).
-
-```bash
-opentrade swap swap --from <address> --to <address> --amount <amount> --chain <chain> --wallet <address> [--slippage <pct>] [--swap-mode <mode>]
-```
-
-| Param | Required | Default | Description |
-|---|---|---|---|
-| `--from` | Yes | - | Source token contract address |
-| `--to` | Yes | - | Destination token contract address |
-| `--amount` | Yes | - | Amount in minimal units |
-| `--chain` | Yes | - | Chain name |
-| `--wallet` | Yes | - | User's wallet address |
-| `--slippage` | No | `"1"` | Slippage tolerance in percent (e.g., `"1"` for 1%) |
-| `--swap-mode` | No | `"exactIn"` | `exactIn` or `exactOut` |
-
-**Return fields**:
-
-| Field | Type | Description |
-|---|---|---|
-| `routerResult` | Object | Same structure as quote return (see swap quote above) |
-| `tx.from` | String | Sender address |
-| `tx.to` | String | Contract address to send the transaction to |
-| `tx.data` | String | Transaction calldata (hex for EVM, base58 for Solana) |
-| `tx.gas` | String | Gas limit for the transaction |
-| `tx.gasPrice` | String | Gas price |
-| `tx.value` | String | Native token value to send (in minimal units) |
-| `tx.minReceiveAmount` | String | Minimum receive amount after slippage (minimal units) |
-| `tx.maxSpendAmount` | String | Maximum spend amount (for exactOut mode) |
-| `tx.slippagePercent` | String | Applied slippage tolerance percentage |
-
-## Input / Output Examples
-
-**User says:** "Swap 100 USDC for OKB on XLayer"
-
-```bash
-# 1. Quote
-opentrade swap quote --from 0x74b7f16337b8972027f6196a17a631ac6de26d22 --to 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee --amount 100000000 --chain xlayer
-# → Expected output: 3.2 OKB, Gas fee: ~$0.001, Price impact: 0.05%
-
-# 2. Approve (ERC-20 token needs approval)
-opentrade swap approve --token 0x74b7f16337b8972027f6196a17a631ac6de26d22 --amount 100000000 --chain xlayer
-# → Returns approval calldata → user signs → broadcast
-
-# 3. Swap
-opentrade swap swap --from 0x74b7f16337b8972027f6196a17a631ac6de26d22 --to 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee --amount 100000000 --chain xlayer --wallet 0xYourWallet --slippage 1
-# → Returns tx data → user signs → broadcast
-```
-
-**User says:** "What DEXes are available on XLayer?"
-
-```bash
-opentrade swap liquidity --chain xlayer
-# → Display: CurveNG, XLayer DEX, ... (DEX sources on XLayer)
-```
-
-## Edge Cases
-
-- **High slippage (>5%)**: warn user, suggest splitting the trade or adjusting slippage
-- **Large price impact (>10%)**: strongly warn, suggest reducing amount
-- **Honeypot token**: `isHoneyPot = true` — block trade and warn user
-- **Tax token**: `taxRate` non-zero — display to user (e.g. 5% buy tax)
-- **Insufficient balance**: check balance first, show current balance, suggest adjusting amount
-- **exactOut not supported**: only Ethereum/Base/BSC/Arbitrum — prompt user to use `exactIn`
-- **Solana native SOL address**: Must use `11111111111111111111111111111111` (system program), NOT `So11111111111111111111111111111111111111112` (wSOL)
-- **Network error**: retry once, then prompt user to try again later
-- **Region restriction (error code 50125 or 80001)**: do NOT show the raw error code to the user. Instead, display a friendly message: `⚠️ Service is not available in your region. Please switch to a supported region and try again.`
-
-## Amount Display Rules
-
-- Input/output amounts in UI units (`1.5 ETH`, `3,200 USDC`)
-- Internal CLI params use minimal units (`1 USDC` = `"1000000"`, `1 ETH` = `"1000000000000000000"`)
-- Gas fees in USD
-- `minReceiveAmount` in both UI units and USD
-- Price impact as percentage
-
-## Global Notes
-
-- Amounts must be in **minimal units** (wei/lamports)
-- `exactOut` only on Ethereum(`1`)/Base(`8453`)/BSC(`56`)/Arbitrum(`42161`)
-- Check `isHoneyPot` and `taxRate` — surface safety info to users
-- EVM contract addresses must be **all lowercase**
-- The CLI resolves chain names automatically (e.g., `ethereum` → `1`, `solana` → `501`)
-- The CLI handles authentication internally via environment variables — see Prerequisites step 4 for default values
+   With a library the mapping is the same object: ethers `wallet.signTransaction({ type: 0, chainId, nonce, gasPrice,
+   gasLimit: gas, to, value, data })`, viem `account.signTransaction({ type: 'legacy', … })`, eth-account
+   `Account.from_key(…).sign_transaction({…})` (convert the 0x-hex quantities to numbers as the library wants). Do it
+   promptly: the nonce, gas price, tip and the Router `deadline` are only right for a moment. If the user changes
+   anything, or time passed, run `build` again rather than editing the plan.
+5. Submit the signed transactions in the plan's order; the script decodes each one, checks it against the plan field by
+   field, refuses the whole order on any difference or an expired deadline, and only then forwards it:
+   ```bash
+   python3 scripts/dex_trade.py submit --plan order.json --signed 0x… 0x… 0x… 0x…
+   python3 scripts/dex_trade.py submit --plan order.json --signed-file signed.txt   # one per line, or a JSON list
+   ```
+   A bundle plan goes out as one bundle per builder (its tip, then the trade, the trade hashes as
+   `revertingTxHashes`); a broadcast plan as a plain broadcast. The output lists every transaction with its hash and
+   `watch`, the trade hashes to track. Never submit the same plan twice; a second submission would only fail on the nonce.
+6. Watch the receipts with `python3 scripts/dex_trade.py watch --hash 0x… --timeout 10` (up to 4 hashes). `status` 1
+   is success, 0 a reverted transaction (gas and any tip were spent); `pending` hashes have not landed within the wait
+   — run `watch` again rather than asking for another signature; a bundle that misses its block window never lands and
+   the nonce stays free, so a fresh `build` is needed if the user still wants the trade. Report the hashes, what was paid
+   and what was received.
+
+## Reading the service
+
+- A sell comes with an `approve` step for exactly the amount sold when the allowance is short; the service never asks
+  for an unlimited allowance, and neither should the user sign one.
+- `summary.executable` false with `error` or `blocked`, or `build` exiting 2 with `no executable route`, means no
+  route right now: the token may be unknown to the service (not a launchpad or tracked pool token), its curve may be
+  paused or migrating, or liquidity is below the gate. Say which, from the message; do not retry in a loop.
+- `simulation.ok` false (HTTP 409 from `build`) means approve→swap reverted on the service's node; the reason is in
+  `quote.execution.simulation.calls[].error`. Typical causes: the wallet lacks the coin or gas, a tax or transfer
+  restriction, a curve that just graduated. Nothing is planned for such an order.
+- Gas price is `max(node, market) × 1.2`; the tip is the service's market suggestion; `signer.nonce` is the latest
+  nonce on the service's node. `submit` refuses a plan whose `deadline` has passed.
+- `submit --broadcast <raw>…` and `submit --bundles <file>` forward transactions the user signed outside a plan; they
+  are not checked against anything. Use them only when the user built the transactions elsewhere and says so.
+
+## Safety rules
+
+- Only prepare the token, side, amount and wallet the user asked for; never add orders, split them, or "retry with more
+  slippage" on your own. A reverted trade is reported, not repeated.
+- Amounts the user gives in coins stay in coins; use `--amount-wei` only when the user gives raw units.
+- Never print `NL_TRADE_TOKEN` or any credential; never ask for, accept or repeat a private key, seed phrase or
+  keystore password. Hashes, addresses and raw signed transactions are fine.
+- `quote` and `build` are read-only for the chain; money moves only at `submit`, after the user signed. Say which step
+  you are running.
+- Stablecoin buys (`--pay`) are only for the coins listed in the reference; the approve is for the exact amount.
+
+## Chains
+
+| chain | id | native coin | stablecoins for `--pay` | how a plan is submitted |
+| --- | --- | --- | --- | --- |
+| `bsc` | 56 | BNB | USDC, USD1, USDT (18 decimals) | builder bundles (BlockRazor, 48 Club) with a tip, or `--broadcast` |
+| `robinhood` | 4663 | ETH | USDG (6 decimals) | broadcast |
